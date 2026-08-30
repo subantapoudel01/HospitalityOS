@@ -1,0 +1,17 @@
+# secrets
+.env
+
+# backend
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# frontend
+node_modules/
+.next/
+*.tsbuildinfo
+frontend/next-env.d.ts.bak
+
+# misc
+.DS_Store

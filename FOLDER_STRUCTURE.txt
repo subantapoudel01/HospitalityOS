@@ -1,0 +1,84 @@
+hospitalityos/    (repo root)
+├── README.md
+├── PROJECT_MANAGEMENT.txt
+├── HospitalityOS_Completion_Roadmap.md
+├── Makefile
+├── .env.example
+├── .gitignore
+│
+├── docs/
+│   ├── 01-platform/                    ← SRS, PRD, ARCHITECTURE, DATABASE_DESIGN, MODEL_SELECTION,
+│   │                                      ROADMAP, UI_UX_PLAN — true for the whole app, not one module
+│   └── modules/
+│       └── receptionist/               ← module-specific notes (MVP_SCOPE, USER_STORIES)
+│           (future modules get a folder here only once you actually start them)
+│
+├── backend/                            ← ONE FastAPI app
+│   ├── app/
+│   │   ├── core/                       ← config, db, model_router.py, auth.py —
+│   │   │                                  shared by everything
+│   │   ├── platform/                   ← shared data every module needs:
+│   │   │                                  hotels, room_types (models.py),
+│   │   │                                  guests (guests.py); later users,
+│   │   │                                  availability, audit_logs
+│   │   ├── modules/
+│   │   │   └── receptionist/           ← the ONLY module that exists right now
+│   │   │       ├── api/                (routes.py — mounted at /api/receptionist)
+│   │   │       ├── models/             (knowledge_documents, knowledge_chunks,
+│   │   │       │                        conversations, messages, ai_requests,
+│   │   │       │                        booking_inquiries)
+│   │   │       ├── services/           (conversation.py - the chat loop,
+│   │   │       │                        intent.py - routes before retrieval,
+│   │   │       │                        booking.py - Slice E slot filling,
+│   │   │       │                        staff.py - dashboard queue/handoff,
+│   │   │       │                        language.py - detection,
+│   │   │       │                        smalltalk.py - offline fallback)
+│   │   │       └── rag/                (chunking.py, ingest.py, retrieval.py)
+│   │   └── main.py                     ← wires each module's routes into the one app
+│   ├── alembic/
+│   ├── tests/                          ← lives HERE, not at repo root: the backend
+│   │   └── llm_eval/                     image only contains backend/, so `make test`
+│   │                                     can only see tests inside it
+│   ├── pytest.ini
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── .dockerignore
+│
+├── frontend/                           ← ONE Next.js app
+│   ├── app/
+│   │   ├── page.tsx                    ← root status page
+│   │   ├── (dashboard)/                ← shared staff dashboard shell
+│   │   │   ├── setup/                  ← hotel profile, rooms, policies
+│   │   │   └── staff/                  ← queue, transcripts, handoff
+│   │   │   └── receptionist/           ← receptionist-only dashboard pages (conversations, inquiries)
+│   │   └── widget/                     ← the public embeddable chat widget
+│   ├── components/
+│   │   ├── ui/                         ← shared design-system pieces (buttons, cards, layout)
+│   │   └── receptionist/               ← components only the receptionist uses
+│   ├── lib/
+│   ├── package.json
+│   ├── Dockerfile
+│   └── .dockerignore
+│
+├── infra/
+│   ├── docker/                         ← the one docker-compose.yml for the whole platform
+│   ├── ci/
+│   └── scripts/
+│
+└── knowledge_base_templates/
+
+(The empty top-level tests/unit, tests/integration and tests/llm_eval folders
+from the original plan are unused — backend tests live in backend/tests/ so
+they ship inside the image that runs them.)
+
+--------------------------------------------------------------------------------
+THE ONE RULE THAT KEEPS THIS HONEST
+--------------------------------------------------------------------------------
+Dependencies point one way: modules -> platform -> core.
+
+  app/modules/receptionist/  MAY import from  app/platform/ and app/core/
+  app/platform/              MAY import from  app/core/  only
+  app/platform/              MUST NOT import from  app/modules/*
+
+The moment platform imports from a module, the module is no longer removable
+and the next module has to fork hotel/room data instead of sharing it.

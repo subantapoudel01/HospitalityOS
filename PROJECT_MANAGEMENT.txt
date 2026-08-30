@@ -1,0 +1,137 @@
+================================================================================
+HOSPITALITYOS — AI RECEPTIONIST MVP
+PROJECT MANAGEMENT PLAN
+================================================================================
+Last updated: 2026-08-16
+Owner: [solo founder / small team, IT background]
+Target: working pilot-ready MVP in ~8 weeks
+
+--------------------------------------------------------------------------------
+WHY THE PHASES CHANGED FROM THE ORIGINAL 7-PHASE DRAFT
+--------------------------------------------------------------------------------
+The original structure (Initiation -> Architecture -> Infra -> Sprint Execution
+-> QA -> Staging -> UAT) is a sequential enterprise-waterfall shape. It works
+for large teams with separate roles per phase, but for a small/solo team
+building an 8-week MVP it creates avoidable waste:
+
+  - Architecture sits idle waiting for Requirements to "close"
+  - QA sits idle waiting for all of Sprint Execution to finish
+  - Staging is a separate ceremony from the pilot deployment it feeds
+  - UAT is treated as a synthetic gate instead of the real pilot itself
+
+The revised structure below keeps every activity from your original list —
+nothing is dropped — but restructures WHEN things happen so that discovery
+and design overlap, QA and LLM evaluation run continuously alongside build
+(not after it), and "staging" and "the pilot" are the same environment
+instead of two.
+
+--------------------------------------------------------------------------------
+REVISED PHASE STRUCTURE (7 stages, 2 run continuously not sequentially)
+--------------------------------------------------------------------------------
+
+STAGE 1 — DISCOVERY + ARCHITECTURE LOCK          (Days 1-5, overlapping)
+  Runs requirements gathering and system/DB design in parallel, not series,
+  because for a single small team the same person(s) do both — no handoff
+  cost to save by separating them.
+  Outputs: SRS, PRD, MVP Scope, User Stories, Architecture Diagram,
+           DB Schema, UI/UX wireframe plan, Roadmap
+  Exit criteria: every doc in docs/01-platform/ and docs/modules/receptionist/
+                 reviewed and frozen v1.0
+
+STAGE 2 — FOUNDATION BOOTSTRAP                    (Days 6-8)
+  Infra + repo + CI in one automated pass using the templates in infra/,
+  not hand-built per environment. Docker Compose spins up Postgres+pgvector,
+  Redis, FastAPI, Next.js locally in one command from day 1.
+  Outputs: working `docker compose up` dev environment, CI pipeline running
+           lint + test on every push, migrations baseline
+  Exit criteria: a fresh clone + `make dev` produces a running stack
+
+STAGE 3 — CORE BUILD IN VERTICAL SLICES           (Days 9-30, ~3 weeks)
+  Instead of building "all backend, then all frontend, then all AI" as
+  separate horizontal layers (original Phase 4 as one giant WBS block),
+  build in end-to-end vertical slices, each one deployable and demoable:
+    Slice A: Hotel + room/rate manual data entry (dashboard CRUD)
+    Slice B: Knowledge base ingestion + RAG retrieval (no chat yet)
+    Slice C: Chat widget + AI conversation (English only first)
+    Slice D: Nepali/Romanized Nepali NLU layer
+    Slice E: Booking inquiry structured extraction
+    Slice F: WhatsApp Business API channel
+    Slice G: Human handoff + live dashboard (WebSocket)
+  Each slice ships with its own tests and its own LLM eval set (see Stage 4)
+  — QA is not a phase that starts after this, it runs inside each slice.
+
+STAGE 4 — CONTINUOUS QA + LLM EVALUATION          (Days 9-30, PARALLEL to Stage 3)
+  Not a separate sequential phase. A standing eval harness
+  (tests/llm_eval/) runs against every slice as it lands:
+    - Golden-set Q&A per hotel (accuracy, hallucination rate)
+    - Escalation-trigger precision/recall (does it hand off when it should?)
+    - Multilingual regression set (English / Romanized Nepali / Devanagari)
+    - Latency + cost per conversation
+  Outputs: a living eval dashboard, not a one-time QA report
+  This is the single biggest efficiency change from the original plan —
+  running eval continuously catches prompt/RAG regressions same-day instead
+  of discovering them in a dedicated QA phase after everything is "done."
+
+STAGE 5 — PILOT ENVIRONMENT = STAGING              (Days 31-35)
+  "Staging deployment & commissioning" and "the pilot" are the same
+  environment, not two. Deploy directly into the pilot hotel's actual
+  website/WhatsApp number on a feature-flagged production instance.
+  Outputs: live instance scoped to 1-2 Pokhara pilot hotels, staff trained
+  Exit criteria: pilot hotel staff can log in and edit their own knowledge
+  base without your help
+
+STAGE 6 — PILOT = UAT (REAL GUESTS, NOT SYNTHETIC TESTERS)  (Days 36-49, ~2 weeks)
+  UAT is not a separate synthetic test cycle — it IS the pilot running
+  against real guest traffic, monitored closely.
+  Outputs: workload-reduction measurement (target: 60% reduction in
+           repetitive front-desk queries, per your original goal),
+           guest satisfaction signal, bug/gap log
+  Exit criteria: pilot hotel agrees the tool is worth paying for
+
+STAGE 7 — ITERATE -> PRODUCTIZE -> FIRST PAID CUSTOMER   (Days 50-56+)
+  Fix what the pilot surfaced, package pricing/onboarding, close first
+  paying hotel. Feeds directly into HospitalityOS expansion roadmap.
+
+--------------------------------------------------------------------------------
+WHY THIS IS MORE EFFICIENT
+--------------------------------------------------------------------------------
+1. No idle phases waiting on handoffs (small team = no handoff cost to save)
+2. QA/LLM-eval debt never accumulates — caught same-day, not in a batch
+3. "Staging" ceremony is eliminated — you deploy once, to the real target
+4. UAT is real signal (actual guests) instead of simulated test scripts
+5. Total elapsed time: ~8 weeks matches your original sprint budget, but
+   with continuous quality signal instead of a late QA cliff
+
+--------------------------------------------------------------------------------
+RACI (solo/small team — expand rows as you hire)
+--------------------------------------------------------------------------------
+Role                | Discovery | Build | QA/Eval | Pilot | Sales
+Founder (you)       | R/A       | R     | C       | R/A   | R/A
+Contract dev (opt.) | C         | R     | C       | C     | -
+Pilot hotel staff   | C         | -     | I       | R     | I
+
+--------------------------------------------------------------------------------
+RISK REGISTER (top 5)
+--------------------------------------------------------------------------------
+1. Gemini model deprecation mid-build -> mitigate with model-abstraction
+   layer (see ARCHITECTURE.md), never hardcode a model string
+2. WhatsApp Business API verification delay (can take 1-3 weeks with Meta)
+   -> start verification in Stage 1, don't wait for Stage 3 Slice F
+3. Pilot hotel has no digital room/rate data -> manual entry UI must be
+   fast enough to onboard a hotel in under 1 hour (design constraint)
+4. Nepali/Devanagari eval set too small to catch regressions -> build the
+   golden set in Stage 1, not as an afterthought in Stage 4
+5. Scope creep into full HospitalityOS before first paid customer ->
+   Stage 7 exit gate is "first paid customer," not "more features"
+
+--------------------------------------------------------------------------------
+DEFINITION OF DONE — MVP
+--------------------------------------------------------------------------------
+[ ] 1-2 pilot hotels live on staging=production, staff self-serve knowledge base
+[ ] Guest can complete a booking inquiry in English, Romanized Nepali, or
+    Devanagari via website widget AND WhatsApp
+[ ] Escalation to human staff works and is measured (precision/recall tracked)
+[ ] LLM eval dashboard shows accuracy/hallucination/latency/cost per slice
+[ ] Documented 60%+ reduction in repetitive front-desk queries at pilot hotel
+[ ] Pricing + onboarding flow ready to sign first paying customer
+================================================================================
