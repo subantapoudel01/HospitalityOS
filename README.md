@@ -48,9 +48,34 @@ API key is needed and nothing is billed per call.
 POST   /api/receptionist/knowledge/documents       ingest raw text
 GET    /api/receptionist/knowledge/documents       list for a hotel
 DELETE /api/receptionist/knowledge/documents/{id}  remove doc + chunks
-POST   /api/receptionist/knowledge/sync-policies   pull Slice A policies in
+POST   /api/receptionist/knowledge/sync-policies   pull Slice A setup data in
 POST   /api/receptionist/knowledge/search          ask a question, see ranked chunks
 ```
+
+`sync-policies` pulls in **policies and room types** — everything staff
+entered at `/setup`. Room types were originally left out, which meant a
+rate card was visible in the form and invisible to guests: the assistant
+refused to quote a price the hotel had already given it. Syncing from the
+same rows keeps `/setup` the single source of truth, so editing a rate and
+re-syncing changes what guests are told. Re-running replaces rather than
+duplicates.
+
+It also writes a derived **rates overview** naming the cheapest and largest
+room. That looks redundant next to the per-room documents and is not:
+retrieval matches passages and will not rank across them, so with only
+per-room documents "What is the cheapest room you have?" was measured as a
+refusal with every rate sitting in the knowledge base. Stating the
+comparison beats loosening the grounding instruction.
+
+**Known retrieval gap.** Brand names embed poorly in
+`paraphrase-multilingual-MiniLM-L12-v2`. Measured against the Rupakot
+corpus: `Do you take cash?` scores 0.397 and `Can I pay with eSewa?` 0.384,
+both correct — but `Do you take eSewa?` scores 0.177 and `Do you take
+Visa?` returns a *lake* document at 0.240. The query embedding is dominated
+by "Do you take" and the proper noun contributes little. It fails safe (a
+refusal, not a wrong answer) and now escalates to a human after three in a
+row. The fix is hybrid retrieval — vector plus a lexical match on
+distinctive terms — which is not yet built.
 
 `/search` returns each hit with a similarity score and its source document, so a
 wrong answer can be traced back to the chunk that caused it. Try it from

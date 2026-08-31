@@ -119,10 +119,15 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
 async def sync_policies(
     payload: schemas.SyncPoliciesIn, db: AsyncSession = Depends(get_db)
 ):
-    """Ingest the hotel's saved policies (Slice A) into the knowledge base."""
+    """Ingest the hotel's saved setup data (Slice A) into the knowledge base.
+
+    Policies AND room types. The path keeps its name so existing callers
+    and scripts do not break, but it has always replaced the whole synced
+    set rather than only policies.
+    """
     await _require_hotel(db, payload.hotel_id)
     try:
-        results = await ingest.sync_hotel_policies(db, hotel_id=payload.hotel_id)
+        results = await ingest.sync_hotel_setup(db, hotel_id=payload.hotel_id)
     except (ValueError, model_router.EmbeddingError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)

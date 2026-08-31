@@ -20,5 +20,12 @@ node_modules/
 *.tsbuildinfo
 frontend/next-env.d.ts.bak
 
+# exported guest data
+# The CSV export downloads here when triggered from a browser on this
+# machine. It contains guest conversation text - personal data that must
+# never reach a public repository.
+booking-inquiries-*.csv
+backups/
+
 # misc
 .DS_Store
