@@ -18,11 +18,19 @@ migration being committed by a failed CI run.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
-from alembic.autogenerate import compare_metadata
-from alembic.migration import MigrationContext
-from sqlalchemy.ext.asyncio import create_async_engine
+# `python /path/to/script.py` puts the SCRIPT's directory on sys.path, not
+# the working directory - so `import app` fails even when run from
+# backend/. Papering over it with PYTHONPATH in the caller works until
+# someone invokes it a different way, which is exactly how this first
+# failed in CI.
+sys.path.insert(0, os.getcwd())
+
+from alembic.autogenerate import compare_metadata  # noqa: E402
+from alembic.migration import MigrationContext  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 
 # Importing the model modules is what registers tables on Base.metadata.
 # This list must match alembic/env.py - a module missing from either place

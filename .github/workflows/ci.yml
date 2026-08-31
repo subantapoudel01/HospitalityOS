@@ -162,7 +162,11 @@ jobs:
 
       - name: Lint
         working-directory: frontend
-        run: npm run lint --if-present
+        # Not --if-present: the script exists and must keep existing.
+        # `next lint` used to be here and PROMPTED for configuration when
+        # no eslint config was present, which in CI is a hung step. It is
+        # the ESLint CLI now, with an explicit flat config.
+        run: npm run lint
 
       - name: Build
         working-directory: frontend
@@ -173,10 +177,6 @@ jobs:
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
-    # Advisory. It does NOT gate the merge: a new critical in a transitive
-    # dependency should not stop an unrelated hotfix from shipping. Read the
-    # summary, decide deliberately.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -186,5 +186,27 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - working-directory: frontend
         run: npm ci
-      - working-directory: frontend
-        run: npm audit --audit-level=high
+
+      - name: npm audit (advisory)
+        working-directory: frontend
+        # Advisory, and marked so at the STEP level rather than the job's.
+        # Job-level continue-on-error still paints the job red, which makes
+        # the Actions page look permanently broken and trains everyone to
+        # ignore it.
+        #
+        # It does not gate the merge on purpose: a new advisory in a
+        # transitive dependency should not stop an unrelated hotfix. As of
+        # this commit it reports 3 highs (postcss, sharp) reachable only
+        # via next 15.5.23, whose fix is next 16 - a deliberate deferral,
+        # not an oversight.
+        continue-on-error: true
+        run: |
+          npm audit --audit-level=high || true
+          npm audit --audit-level=high --json > /tmp/audit.json || true
+          echo "### Dependency audit" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const a = require('/tmp/audit.json');
+            const v = a.metadata?.vulnerabilities || {};
+            console.log('| severity | count |'); console.log('|---|---|');
+            for (const [k, n] of Object.entries(v)) if (n) console.log('| ' + k + ' | ' + n + ' |');
+          " >> $GITHUB_STEP_SUMMARY
