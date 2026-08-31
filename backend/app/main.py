@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.modules.receptionist.api import router as receptionist_router
 from app.modules.receptionist.api import staff_router
+from app.platform.api import auth_router
 from app.platform.api import router as platform_router
 
 app = FastAPI(title="HospitalityOS API", version="0.1.0")
@@ -59,7 +60,9 @@ async def health_ready():
 
 
 # --- routers ------------------------------------------------------------
-# Platform first (shared resources), then one line per module.
+# Auth first: everything below it is gated by what it issues.
+app.include_router(auth_router, prefix="/api")
+# Platform next (shared resources), then one line per module.
 app.include_router(platform_router, prefix="/api")
 app.include_router(receptionist_router, prefix="/api")
 app.include_router(staff_router, prefix="/api")

@@ -1,9 +1,13 @@
 // Thin API client for the platform endpoints.
 //
-// NOTE: no auth header yet — the backend has no users table or session.
-// When auth lands, attach the token here and drop hotel ids from callers.
+// The staff session token is attached when one is present. The platform
+// endpoints themselves are still UNGATED on the backend - see the security
+// note at the top of backend/app/platform/api/routes.py - so sending the
+// header changes nothing today. It is here so that gating them is a
+// backend-only change rather than one that also has to find every caller.
 
 import type { HotelIn, HotelOut, HotelSummary } from "./types";
+import { authHeader } from "./auth";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -39,7 +43,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${BASE}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(),
+        ...(init?.headers || {}),
+      },
     });
   } catch {
     throw new ApiError(

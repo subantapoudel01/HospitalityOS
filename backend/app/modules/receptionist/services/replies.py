@@ -98,3 +98,18 @@ def is_handoff_offer(text: str) -> bool:
     if not cleaned:
         return False
     return cleaned in _OFFER_TEXTS or cleaned.endswith(_OFFER_TAIL)
+
+
+def is_fixed_refusal(text: str) -> bool:
+    """Is this exactly one of the fixed refusals?
+
+    Exact match against the known strings, never a search for words like
+    "sorry" or "afraid". A perfectly good grounded answer can begin "I'm
+    sorry, the pool closes at 8" - counting that as a refusal would
+    escalate a guest who was just answered correctly.
+
+    The grounding prompt instructs the model to emit these verbatim rather
+    than paraphrase, which is what makes this reliable with a hosted
+    provider as well as the extractive one.
+    """
+    return _normalise(text) in _OFFER_TEXTS

@@ -1,0 +1,190 @@
+name: CI
+
+# Every push and every PR. The backend suite needs a real Postgres with
+# pgvector and a real embedding model - see infra/ci/README.md for why
+# neither is mocked, and why this file lives here rather than in infra/ci.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A second push to the same branch cancels the first. Nobody needs the
+  # results of a commit that has already been replaced.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: No secrets committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .env must never be tracked
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git. It holds live API keys."
+            exit 1
+          fi
+          echo "OK: .env is not tracked"
+
+      - name: No provider keys in tracked files
+        run: |
+          # Prefixes only, matched against tracked files. Deliberately not a
+          # general entropy scan: that flags every base64 blob and gets
+          # ignored within a week.
+          if git grep -nIE '(gsk_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{32,}|AIza[A-Za-z0-9_-]{30,})' -- \
+               ':!*.example' ':!.github/workflows/*'; then
+            echo "::error::A live-looking API key is committed. Rotate it, then remove it."
+            exit 1
+          fi
+          echo "OK: no key-shaped strings in tracked files"
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Must match infra/docker/docker-compose.yml. Plain `postgres` has
+        # no pgvector, and every retrieval test fails on CREATE EXTENSION.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: hospitalityos
+          POSTGRES_USER: hospitalityos
+          POSTGRES_PASSWORD: devpassword
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hospitalityos -d hospitalityos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://hospitalityos:devpassword@localhost:5432/hospitalityos
+      REDIS_URL: redis://localhost:6379/0
+      FASTEMBED_CACHE_PATH: /home/runner/fastembed_cache
+      # No provider keys are configured, and that is deliberate: conftest
+      # pins CHAT_PROVIDER to extractive and FAST_PROVIDER to none unless
+      # RUN_HOSTED_CHAT_EVAL=1. CI must never be a billed API run whose
+      # result depends on a model's mood.
+      AI_CHAT_PROVIDER: extractive
+      AI_FAST_PROVIDER: none
+      AI_EMBED_PROVIDER: local
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Cache the embedding model
+        # ~220MB of ONNX weights. Downloading it on every run adds minutes
+        # and occasionally fails on a Hugging Face hiccup.
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/fastembed_cache
+          key: fastembed-${{ hashFiles('backend/app/core/model_router.py') }}
+          restore-keys: fastembed-
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Migrations are reversible
+        working-directory: backend
+        # A downgrade that fails is found here, not at 2am during a rollback.
+        run: |
+          alembic downgrade -1
+          alembic upgrade head
+
+      - name: Schema matches the models
+        working-directory: backend
+        # Catches a model changed without a migration: passes locally
+        # because the dev database was built from metadata, then breaks
+        # on the first real `alembic upgrade head` against production.
+        run: python ../infra/ci/check_schema_drift.py
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest -q --junitxml=/tmp/pytest.xml
+
+      - name: Test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: /tmp/pytest.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        # Separate from the build so a type error reads as a type error
+        # rather than as a mysterious build failure.
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint --if-present
+
+      - name: Build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: npm run build
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    # Advisory. It does NOT gate the merge: a new critical in a transitive
+    # dependency should not stop an unrelated hotfix from shipping. Read the
+    # summary, decide deliberately.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - working-directory: frontend
+        run: npm ci
+      - working-directory: frontend
+        run: npm audit --audit-level=high

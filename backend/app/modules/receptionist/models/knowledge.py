@@ -15,6 +15,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -80,12 +81,22 @@ class KnowledgeChunk(Base):
     """One embedded passage. This is what retrieval actually searches."""
 
     __tablename__ = "knowledge_chunks"
+    __table_args__ = (
+        # Named to match migration 0002. Left to SQLAlchemy's default it
+        # would be ix_knowledge_chunks_knowledge_document_id, and the CI
+        # drift check would ask for a migration that drops and recreates a
+        # perfectly good index on every deployment.
+        Index("ix_knowledge_chunks_document_id", "knowledge_document_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # No index=True here: that auto-names the index
+    # ix_knowledge_chunks_knowledge_document_id, while migration 0002
+    # created ix_knowledge_chunks_document_id. The deployed database is the
+    # reality, so the name is pinned in __table_args__ below instead.
     knowledge_document_id: Mapped[int] = mapped_column(
         ForeignKey("knowledge_documents.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     # Denormalised from the parent document on purpose: RAG queries filter
     # by hotel on every single search, and doing it without a join keeps

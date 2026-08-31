@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { DegradationBanner } from "@/components/receptionist/DegradationBanner";
 import { StatusPill } from "@/components/receptionist/StatusPill";
-import { TokenGate } from "@/components/receptionist/TokenGate";
+import { SessionExpired } from "@/components/receptionist/SessionExpired";
+import { StaffBar } from "@/components/receptionist/StaffBar";
 import { Button } from "@/components/ui/Button";
+import { currentHotelId } from "@/lib/auth";
 import { Section } from "@/components/ui/Section";
 import { nightsBetween, shortDate, shortDateTime } from "@/lib/format";
 import {
@@ -16,6 +18,7 @@ import {
   getKnowledgeHealth,
   getMetrics,
   listConversations,
+  downloadInquiriesCsv,
   listInquiries,
   setInquiryStatus,
   type BookingInquiry,
@@ -26,13 +29,21 @@ import {
   type Metrics,
 } from "@/lib/staff";
 
-const HOTEL_ID = Number(process.env.NEXT_PUBLIC_WIDGET_HOTEL_ID || "1");
+// The signed-in user's own property. The env var is only a fallback for
+// the legacy shared token, which carries no hotel of its own.
+const FALLBACK_HOTEL_ID = Number(process.env.NEXT_PUBLIC_WIDGET_HOTEL_ID || "1");
 
 // Polling rather than WebSocket, per the slice decision. Paused while the
 // tab is hidden so a dashboard left open overnight is not hammering the API.
 const POLL_MS = 5000;
 
 export default function StaffDashboard() {
+  // Resolved from the session token, so a staff member sees their own
+  // property rather than whatever NEXT_PUBLIC_WIDGET_HOTEL_ID was built
+  // with. Safe during SSR (falls back), because every fetch below runs in
+  // an effect after hydration and no markup depends on it.
+  const hotelId = currentHotelId(FALLBACK_HOTEL_ID);
+
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [inquiries, setInquiries] = useState<BookingInquiry[]>([]);
@@ -42,15 +53,16 @@ export default function StaffDashboard() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const [m, c, i, h, d] = await Promise.all([
-        getMetrics(HOTEL_ID),
-        listConversations(HOTEL_ID, convoFilter || undefined),
-        listInquiries(HOTEL_ID),
-        getKnowledgeHealth(HOTEL_ID),
-        getDegradation(HOTEL_ID),
+        getMetrics(hotelId),
+        listConversations(hotelId, convoFilter || undefined),
+        listInquiries(hotelId),
+        getKnowledgeHealth(hotelId),
+        getDegradation(hotelId),
       ]);
       setMetrics(m);
       setConversations(c);
@@ -68,7 +80,7 @@ export default function StaffDashboard() {
     } finally {
       setLoaded(true);
     }
-  }, [convoFilter]);
+  }, [convoFilter, hotelId]);
 
   useEffect(() => {
     refresh();
@@ -107,7 +119,7 @@ export default function StaffDashboard() {
       prev.map((q) => (q.id === id ? { ...q, status } : q))
     );
     try {
-      await setInquiryStatus(HOTEL_ID, id, status);
+      await setInquiryStatus(hotelId, id, status);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update.");
     } finally {
@@ -115,13 +127,13 @@ export default function StaffDashboard() {
     }
   }
 
-  if (authError) {
-    return <TokenGate message={authError} onSaved={refresh} />;
-  }
+  if (authError) return <SessionExpired message={authError} />;
   if (!loaded) return <p>Loading dashboard…</p>;
 
   return (
     <>
+      <StaffBar />
+
       <div className="dash-head">
         <div>
           <h1 className="page-title">Staff dashboard</h1>
@@ -231,6 +243,11 @@ export default function StaffDashboard() {
                     {shortDateTime(c.last_message_at ?? c.started_at)}
                   </span>
                 </div>
+                {c.escalation_reason && (
+                  <div className="row-why">
+                    Handed over automatically: {c.escalation_reason}
+                  </div>
+                )}
                 {c.last_message_preview && (
                   <div className="row-preview">{c.last_message_preview}</div>
                 )}
@@ -244,6 +261,33 @@ export default function StaffDashboard() {
         title="Booking inquiries"
         hint="Collected automatically from guest conversations."
       >
+        {inquiries.length > 0 && (
+          <div className="filters">
+            <Button
+              type="button"
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  await downloadInquiriesCsv(hotelId);
+                } catch (err) {
+                  setError(
+                    err instanceof Error ? err.message : "Export failed."
+                  );
+                } finally {
+                  setExporting(false);
+                }
+              }}
+            >
+              {exporting ? "Preparing…" : "Export CSV"}
+            </Button>
+            <span className="section-hint">
+              Opens in Excel or Google Sheets. Includes the guest&apos;s own
+              wording so a misread date is visible.
+            </span>
+          </div>
+        )}
+
         {inquiries.length === 0 ? (
           <p className="empty">No booking inquiries yet.</p>
         ) : (

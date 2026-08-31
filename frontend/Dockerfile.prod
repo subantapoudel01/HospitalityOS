@@ -1,0 +1,55 @@
+# Production image for the Next.js frontend.
+#
+# Separate from Dockerfile (which runs `next dev` with the source mounted)
+# because the two want opposite things: dev needs the source and hot
+# reload, prod needs a compiled, minimal, source-free image.
+
+# --- build ---------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# NEXT_PUBLIC_* values are inlined into the client bundle AT BUILD TIME,
+# not read at runtime. Empty is deliberate: Traefik serves the API from
+# the same origin in production, so the client uses relative paths and the
+# session cookie is same-origin.
+ENV NEXT_PUBLIC_API_URL=""
+ARG NEXT_PUBLIC_WIDGET_HOTEL_ID=1
+ENV NEXT_PUBLIC_WIDGET_HOTEL_ID=${NEXT_PUBLIC_WIDGET_HOTEL_ID}
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+# --- run -----------------------------------------------------------------
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Non-root. A container breakout is a smaller problem when the process
+# inside it does not own the filesystem.
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+
+# `standalone` carries its own minimal node_modules and server.js; static
+# and public are not traced into it and must be copied alongside.
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:3000/staff/login',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+
+CMD ["node", "server.js"]

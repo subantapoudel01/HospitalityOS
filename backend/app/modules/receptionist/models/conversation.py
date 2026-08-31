@@ -80,6 +80,13 @@ class Conversation(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Why this was escalated (US-4). NULL means the guest asked for a
+    # human themselves, which is both the historical case and the correct
+    # reading of every row that predates automatic escalation.
+    escalation_trigger: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
+    escalation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",
@@ -143,6 +150,10 @@ class AiRequest(Base):
     # normally - including when no provider is configured at all, which is a
     # deliberate setting rather than a failure.
     degraded_from: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Indexed: the dashboard asks "did anything degrade in the last 15
+    # minutes" on every 5s poll. Declared here as well as in migration
+    # 0006 so the models stay the honest description of the schema.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        index=True,
     )

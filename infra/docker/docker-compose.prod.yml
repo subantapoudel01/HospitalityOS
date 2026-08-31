@@ -1,0 +1,154 @@
+# Production stack: Traefik terminating TLS in front of the app.
+#
+#   docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Differences from the dev compose that are NOT cosmetic:
+#
+#   * Postgres and Redis publish NO ports. In dev they are on 5432/6379 for
+#     convenience; on a public VPS that is a database open to the internet
+#     behind one password. They reach each other over the compose network.
+#   * No source bind-mounts. The images are the artifact.
+#   * Migrations are not run by the app container. See infra/scripts/deploy.sh.
+#   * Everything routes through ONE hostname: Traefik sends /api and /health
+#     to the backend and everything else to the frontend, so the session
+#     cookie is same-origin.
+
+name: hospitalityos
+
+services:
+  traefik:
+    image: traefik:v3.2
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      # Containers must opt in with traefik.enable=true. Without this,
+      # Traefik would happily publish Postgres if it ever exposed a port.
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Every plain-HTTP request is redirected to HTTPS. A staff password
+      # typed over http:// is a password on the wire.
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      # Uncomment while testing DNS. Let's Encrypt rate-limits real
+      # certificates to 5 per domain per week; the staging CA does not.
+      # - --certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --accesslog=true
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Read-only: Traefik only needs to watch for container labels, and a
+      # writable docker socket in a container is root on the host.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    networks: [edge]
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hospitalityos}
+      POSTGRES_USER: ${POSTGRES_USER:-hospitalityos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hospitalityos} -d ${POSTGRES_DB:-hospitalityos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    # No `ports:`. Reach it with:
+    #   docker compose -f ... exec postgres psql -U hospitalityos
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file: ../../.env.prod
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hospitalityos}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hospitalityos}
+      REDIS_URL: redis://redis:6379/0
+      # Same origin as the UI, so this is the only allowed origin.
+      CORS_ORIGINS: '["https://${DOMAIN}"]'
+      # HTTPS only in production; a Secure cookie is the point of the
+      # certificate above.
+      COOKIE_SECURE: "true"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    networks: [edge, internal]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=hospitalityos_edge
+      - traefik.http.services.backend.loadbalancer.server.port=8000
+      # Priority beats the frontend's catch-all rule for these prefixes.
+      - traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`))
+      - traefik.http.routers.backend.priority=10
+      - traefik.http.routers.backend.entrypoints=websecure
+      - traefik.http.routers.backend.tls.certresolver=le
+      - traefik.http.routers.backend.middlewares=security-headers@docker
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_WIDGET_HOTEL_ID: ${NEXT_PUBLIC_WIDGET_HOTEL_ID:-1}
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=hospitalityos_edge
+      - traefik.http.services.frontend.loadbalancer.server.port=3000
+      - traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.frontend.priority=1
+      - traefik.http.routers.frontend.entrypoints=websecure
+      - traefik.http.routers.frontend.tls.certresolver=le
+      - traefik.http.routers.frontend.middlewares=security-headers@docker
+
+      # --- shared response headers ---
+      # HSTS: one year, and only set it once you are certain HTTPS works.
+      # Browsers cache it, so a premature max-age locks visitors out of the
+      # site over http for that long.
+      - traefik.http.middlewares.security-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.security-headers.headers.browserXssFilter=true
+      - traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      # DENY, not SAMEORIGIN: nothing here is meant to be framed, and the
+      # staff dashboard in an iframe is a clickjacking target.
+      - traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=DENY
+
+volumes:
+  pgdata:
+  redisdata:
+  letsencrypt:
+
+networks:
+  # Reachable from Traefik.
+  edge:
+  # Postgres and Redis only. The frontend is deliberately NOT on this one -
+  # it has no business talking to the database.
+  internal:

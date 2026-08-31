@@ -203,20 +203,97 @@ WebSocket — polling was chosen deliberately for pilot scale.
 
 ### Access
 
-Every `/staff/*` endpoint requires an `X-Staff-Token` header matching
-`STAFF_API_TOKEN`. **This is a deployment gate, not authentication** — no
-per-user identity, no audit trail, and anyone with the token has everything.
-It exists because these endpoints expose complete guest transcripts. It
-fails closed: an unset token disables the staff API (503) rather than
-opening it. Real auth (users, sessions, the UI plan's login screen) is still
-outstanding and should replace this before the pilot.
+Real staff accounts. Sign in at http://localhost:3000/staff/login.
+
+```
+POST /api/auth/login    email + password -> JWT (also set as a cookie)
+POST /api/auth/logout   clears the cookie
+GET  /api/auth/me       who the server thinks you are
+```
+
+Passwords are bcrypt (12 rounds, salted per hash). The session is an HS256
+JWT carrying `user_id`, `role` and **`hotel_id`** — which is what finally
+makes NFR-3 enforceable: a staff member requesting another property's
+conversations gets a 404, not their data.
+
+```bash
+make jwt-secret     # a signing secret for .env
+```
+
+```bash
+make seed-admin     # the first account; prints its password once
+```
+
+Both **fail closed**. An unset `JWT_SECRET` disables login (503) rather
+than falling back to a built-in default, because a shipped default signing
+key is forgeable by anyone who can read this repo. There is no default
+password anywhere in the seed script either.
+
+`/staff/*` routes are also guarded by `frontend/middleware.ts`, which
+redirects a signed-out visitor to the login page. That is a **redirect, not
+the security boundary** — it checks the cookie's expiry without verifying
+the signature, because that would mean putting `JWT_SECRET` in the frontend
+container. The API verifies on every request.
+
+`STAFF_API_TOKEN` still works and is **superseded**. It has no identity and
+grants cross-tenant access, so a JWT always wins when both are present.
+Leave it empty in production.
 
 `GET /api/receptionist/conversations/{id}` stays **ungated** because the
 guest widget polls its own transcript to see staff replies. That is
 capability-based (you need the conversation id) rather than authenticated.
 
+Honest limits: the session cookie is readable by JavaScript (the UI and API
+are separate origins in dev), and logout clears the cookie but cannot
+invalidate a token already copied elsewhere — rotate `JWT_SECRET` to cut
+every session at once. Both are documented at the top of
+`backend/app/platform/api/auth_routes.py`.
+
 Note: `GET /booking-inquiries` moved under `/staff/` and now requires the
 token — a breaking change from Slice E.
+
+### Export (US-8)
+
+```
+GET /api/receptionist/staff/booking-inquiries.csv?hotel_id=1&status=new
+```
+
+Honours the same status filter as the list, so "export what I am looking
+at" does. UTF-8 **with a BOM**, because without it Excel on Windows renders
+Devanagari as mojibake — and Windows Excel is where these files are opened.
+Includes the guest's own wording, so a misparsed date is visible to whoever
+acts on it; a message starting `=` is prefixed so Excel treats it as text
+rather than a formula.
+
+### Automatic escalation (US-4)
+
+Two independent triggers, both deterministic — no model call, because the
+guest whose questions are failing during a rate limit is exactly the guest
+who needs a person:
+
+- **Stated frustration** — "this is useless", "you keep saying". Fires that
+  turn. Matched as *phrases*, never bare words: "the umbrella was useless"
+  is not a complaint about the assistant.
+- **Dead end** — three consecutive refusals, counting the one about to be
+  sent, so the guest is handed over *instead of* being refused a third
+  time. Catches the polite guest who would otherwise just close the tab.
+
+Why three and not two: two unanswerable questions in a row is unremarkable.
+Every false escalation interrupts a real person, and staff pulled into
+three non-conversations stop trusting the queue.
+
+`conversations.escalation_trigger` / `escalation_reason` record why, and
+the dashboard shows it in the queue — "the guest asked for a person" and
+"the AI decided it was failing" need different opening lines. NULL means
+the guest asked. Turn it off with `CHAT_AUTO_ESCALATE=false`, or disable
+just the dead-end arm with `CHAT_DEAD_END_TURNS=0`.
+
+**This required a fix to the grounding prompt.** The model was told to
+decline *in its own words*, so with Groq generating, a refusal was reported
+as `intent=answer` and matched nothing. Measured live: three unanswerable
+questions produced `refusal, answer, answer` and never escalated. The same
+gap silently broke "yes" → escalate, which also matches the fixed strings.
+The prompt now pins the exact refusal wording.
 
 ## When the AI provider fails
 
@@ -284,11 +361,24 @@ Stage 3, vertical slices — see `PROJECT_MANAGEMENT.txt` for the full plan.
   filling into `booking_inquiries`, with deterministic date validation.
 - **Human handoff + staff dashboard** (done): staff queue at `/staff`,
   transcripts, status controls, staff replies reaching the guest widget.
-- **Slice F — WhatsApp channel** is next.
+- **Staff accounts** (done): bcrypt passwords, JWT sessions scoped to one
+  property, a login screen and route middleware. Replaces the shared token.
+- **Automatic escalation, US-4** (done): stated frustration, or three dead
+  ends in a row.
+- **Inquiry export, US-8** (done): CSV from the dashboard.
+- **Deployment** (ready, not deployed): production compose with Traefik and
+  Let's Encrypt, non-root images, server bootstrap and backup scripts, and
+  a runbook at `docs/01-platform/DEPLOYMENT.md`. Provisioning the VPS and
+  pointing DNS need your accounts.
+- **CI** (done): `.github/workflows/ci.yml` runs the suite against real
+  Postgres+pgvector on every push, plus migration reversibility, schema
+  drift and a committed-secret check. See `infra/ci/README.md`.
+- **Slice F — WhatsApp channel** is next. Meta business verification takes
+  1-3 weeks, so start that paperwork before writing the handler.
 
-Still outstanding for a complete handoff: automatic escalation (US-4 wants
-it triggered by detected frustration or complexity within 1-2 turns; today
-it is guest-initiated only), inquiry export (US-8), and real staff accounts.
+Still outstanding: the staff availability calendar (Milestone 5), which
+needs a room-inventory model that does not exist yet, and per-role
+permissions — `manager` and `staff` are currently identical to `admin`.
 
 Now running on Groq (`openai/gpt-oss-120b` for chat, `openai/gpt-oss-20b`
 for the fast tier). Measured 440-900ms per call against the Gemini free

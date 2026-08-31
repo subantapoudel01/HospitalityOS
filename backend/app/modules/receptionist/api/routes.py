@@ -7,12 +7,12 @@ retrieval.search(), so one hotel's chunks can never leak into another's
 results - but nothing yet stops a caller from naming someone else's hotel
 id. Close that with the same session lookup when auth lands (NFR-3).
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import model_router
-from app.core.auth import require_staff_token
+from app.core.auth import Principal, require_staff, require_staff_token
 from app.core.db import get_db
 from app.modules.receptionist import schemas
 from app.modules.receptionist.models import (
@@ -23,6 +23,7 @@ from app.modules.receptionist.models import (
 from app.modules.receptionist.rag import ingest, quality, retrieval
 from app.modules.receptionist.models import ConversationStatus, InquiryStatus
 from app.modules.receptionist.services import conversation as convo
+from app.modules.receptionist.services import export
 from app.modules.receptionist.services import staff as staff_svc
 
 router = APIRouter(prefix="/receptionist", tags=["receptionist"])
@@ -222,6 +223,8 @@ async def chat(payload: schemas.ChatIn, db: AsyncSession = Depends(get_db)):
 )
 async def get_conversation(
     conversation_id: int,
+    # NOT scoped_hotel_id: the guest widget polls this for staff replies
+    # and has no session. Capability-based - you must know the id.
     hotel_id: int = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -285,6 +288,21 @@ async def request_human(
 # the guest-facing chat is not. See app/core/auth.py for what that gate is
 # and, importantly, what it is not.
 
+async def scoped_hotel_id(
+    hotel_id: int = Query(...),
+    principal: Principal = Depends(require_staff),
+) -> int:
+    """`hotel_id` from the query string, checked against the caller's tenant.
+
+    Before staff accounts existed the id was simply trusted, so any holder
+    of the shared token could read any property's transcripts. A JWT pins
+    the caller to one hotel; a mismatch 404s rather than 403s so the
+    dashboard cannot be used to enumerate other properties (NFR-3).
+    """
+    principal.assert_may_access(hotel_id)
+    return hotel_id
+
+
 staff_router = APIRouter(
     prefix="/receptionist/staff",
     tags=["staff"],
@@ -294,7 +312,7 @@ staff_router = APIRouter(
 
 @staff_router.get("/metrics", response_model=schemas.MetricsOut)
 async def staff_metrics(
-    hotel_id: int = Query(...), db: AsyncSession = Depends(get_db)
+    hotel_id: int = Depends(scoped_hotel_id), db: AsyncSession = Depends(get_db)
 ):
     result = await staff_svc.metrics(db, hotel_id=hotel_id)
     return schemas.MetricsOut(**result.__dict__)
@@ -304,7 +322,7 @@ async def staff_metrics(
     "/conversations", response_model=list[schemas.ConversationSummaryOut]
 )
 async def staff_list_conversations(
-    hotel_id: int = Query(...),
+    hotel_id: int = Depends(scoped_hotel_id),
     status_filter: ConversationStatus | None = Query(default=None, alias="status"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -322,7 +340,9 @@ async def staff_set_conversation_status(
     conversation_id: int,
     payload: schemas.ConversationStatusIn,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(require_staff),
 ):
+    principal.assert_may_access(payload.hotel_id)
     try:
         conversation = await staff_svc.set_conversation_status(
             db,
@@ -356,8 +376,10 @@ async def staff_reply(
     conversation_id: int,
     payload: schemas.StaffMessageIn,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(require_staff),
 ):
     """A real person replying in the thread. Does not change the status."""
+    principal.assert_may_access(payload.hotel_id)
     try:
         await staff_svc.post_staff_message(
             db,
@@ -390,13 +412,46 @@ async def staff_reply(
     "/booking-inquiries", response_model=list[schemas.BookingInquiryOut]
 )
 async def staff_list_inquiries(
-    hotel_id: int = Query(...),
+    hotel_id: int = Depends(scoped_hotel_id),
     status_filter: InquiryStatus | None = Query(default=None, alias="status"),
     db: AsyncSession = Depends(get_db),
 ):
     """Inquiries collected from guest conversations, newest first (US-8)."""
     return await staff_svc.list_inquiries(
         db, hotel_id=hotel_id, status=status_filter
+    )
+
+
+@staff_router.get("/booking-inquiries.csv", response_class=Response)
+async def staff_export_inquiries(
+    hotel_id: int = Depends(scoped_hotel_id),
+    status_filter: InquiryStatus | None = Query(default=None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Booking inquiries as a spreadsheet (US-8).
+
+    Honours the same status filter as the list endpoint, so "export what I
+    am looking at" does what it says rather than silently exporting
+    everything.
+    """
+    inquiries = await staff_svc.list_inquiries(
+        db, hotel_id=hotel_id, status=status_filter, limit=5000
+    )
+    body = export.to_csv(inquiries)
+
+    return Response(
+        # utf-8-sig, not utf-8: without the BOM, Excel on Windows renders
+        # Devanagari in the guest's own words as mojibake, and Windows
+        # Excel is exactly where these files are opened.
+        content=body.encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{export.filename(hotel_id)}"',
+            # The browser fetch reads this to name the download; without it
+            # a cross-origin response hides every header but the safelist.
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
     )
 
 
@@ -407,7 +462,9 @@ async def staff_set_inquiry_status(
     inquiry_id: int,
     payload: schemas.InquiryStatusIn,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(require_staff),
 ):
+    principal.assert_may_access(payload.hotel_id)
     try:
         inquiry = await staff_svc.set_inquiry_status(
             db,
@@ -425,7 +482,7 @@ async def staff_set_inquiry_status(
 
 @staff_router.get("/knowledge/health", response_model=schemas.KnowledgeHealthOut)
 async def knowledge_health(
-    hotel_id: int = Query(...), db: AsyncSession = Depends(get_db)
+    hotel_id: int = Depends(scoped_hotel_id), db: AsyncSession = Depends(get_db)
 ):
     """Flag knowledge the assistant cannot reliably answer from.
 
@@ -480,7 +537,7 @@ async def knowledge_health(
 
 @staff_router.get("/degradation", response_model=schemas.DegradationOut)
 async def staff_degradation(
-    hotel_id: int = Query(...),
+    hotel_id: int = Depends(scoped_hotel_id),
     minutes: int = Query(default=15, ge=1, le=1440),
     db: AsyncSession = Depends(get_db),
 ):

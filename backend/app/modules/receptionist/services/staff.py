@@ -35,6 +35,11 @@ class ConversationSummary:
     last_message_at: datetime | None
     last_message_preview: str | None
     awaiting_staff: bool
+    # Why it was escalated (US-4). None means the guest asked for a human
+    # themselves, which reads differently to staff than the AI deciding
+    # the conversation was failing.
+    escalation_trigger: str | None = None
+    escalation_reason: str | None = None
 
 
 @dataclass
@@ -144,6 +149,8 @@ async def list_conversations(
                     conversation.status is ConversationStatus.escalated
                     and sender is not Sender.staff
                 ),
+                escalation_trigger=conversation.escalation_trigger,
+                escalation_reason=conversation.escalation_reason,
             )
         )
     return out

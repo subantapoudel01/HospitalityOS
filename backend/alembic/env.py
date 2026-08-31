@@ -22,6 +22,7 @@ from app.core.db import Base
 import app.modules.receptionist.models  # noqa: F401,E402  (incl. booking)
 import app.platform.guests  # noqa: F401,E402
 import app.platform.models  # noqa: F401,E402
+import app.platform.users  # noqa: F401,E402
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

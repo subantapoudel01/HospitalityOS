@@ -383,3 +383,41 @@ table.tbl select { width: auto; padding: .2rem .35rem; font-size: .8rem; }
   border-radius: 3px;
   font-size: .95em;
 }
+
+/* --- signed-in bar (staff auth) --- */
+.staff-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  padding-bottom: .6rem;
+  border-bottom: 1px solid var(--line, #e5e7eb);
+  font-size: .85rem;
+}
+.staff-bar-who {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: var(--muted, #6b7280);
+}
+.staff-bar-role {
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  background: var(--chip, #f3f4f6);
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* Why a conversation was auto-escalated (US-4). Staff triage the queue
+   before opening transcripts, so the reason has to be readable here. */
+.row-why {
+  margin-top: .35rem;
+  font-size: .8rem;
+  color: var(--warn-fg, #92400e);
+  background: var(--warn-bg, #fffbeb);
+  border-left: 3px solid var(--warn-line, #f59e0b);
+  padding: .35rem .55rem;
+  border-radius: 0 4px 4px 0;
+}

@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { use } from "react";
 
 import { StatusPill } from "@/components/receptionist/StatusPill";
-import { TokenGate } from "@/components/receptionist/TokenGate";
+import { SessionExpired } from "@/components/receptionist/SessionExpired";
+import { StaffBar } from "@/components/receptionist/StaffBar";
 import { Button } from "@/components/ui/Button";
+import { currentHotelId } from "@/lib/auth";
 import { Section } from "@/components/ui/Section";
 import { shortDateTime } from "@/lib/format";
 import {
@@ -18,7 +20,7 @@ import {
   type ConversationStatus,
 } from "@/lib/staff";
 
-const HOTEL_ID = Number(process.env.NEXT_PUBLIC_WIDGET_HOTEL_ID || "1");
+const FALLBACK_HOTEL_ID = Number(process.env.NEXT_PUBLIC_WIDGET_HOTEL_ID || "1");
 const POLL_MS = 5000;
 
 const SENDER_LABEL: Record<string, string> = {
@@ -34,6 +36,8 @@ export default function ConversationDetail({
 }) {
   const { id } = use(params);
   const conversationId = Number(id);
+  // The signed-in user's property; see the note in the dashboard page.
+  const hotelId = currentHotelId(FALLBACK_HOTEL_ID);
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [draft, setDraft] = useState("");
@@ -46,7 +50,7 @@ export default function ConversationDetail({
 
   const refresh = useCallback(async () => {
     try {
-      setConversation(await getConversation(HOTEL_ID, conversationId));
+      setConversation(await getConversation(hotelId, conversationId));
       setAuthError(null);
       setError(null);
     } catch (err) {
@@ -60,7 +64,7 @@ export default function ConversationDetail({
     } finally {
       setLoaded(true);
     }
-  }, [conversationId]);
+  }, [conversationId, hotelId]);
 
   useEffect(() => {
     refresh();
@@ -91,7 +95,7 @@ export default function ConversationDetail({
   async function changeStatus(status: ConversationStatus) {
     try {
       setConversation(
-        await setConversationStatus(HOTEL_ID, conversationId, status)
+        await setConversationStatus(hotelId, conversationId, status)
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update status.");
@@ -104,7 +108,7 @@ export default function ConversationDetail({
     if (!content || sending) return;
     setSending(true);
     try {
-      setConversation(await sendStaffMessage(HOTEL_ID, conversationId, content));
+      setConversation(await sendStaffMessage(hotelId, conversationId, content));
       setDraft("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send.");
@@ -113,7 +117,7 @@ export default function ConversationDetail({
     }
   }
 
-  if (authError) return <TokenGate message={authError} onSaved={refresh} />;
+  if (authError) return <SessionExpired message={authError} />;
   if (!loaded) return <p>Loading conversation…</p>;
   if (!conversation) {
     return (
@@ -128,6 +132,8 @@ export default function ConversationDetail({
 
   return (
     <>
+      <StaffBar />
+
       <div className="dash-head">
         <div>
           <h1 className="page-title">

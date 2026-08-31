@@ -1,0 +1,46 @@
+# Production image for the FastAPI backend.
+#
+# Differs from Dockerfile in three ways that matter:
+#   * no --reload (it watches the filesystem and doubles memory)
+#   * runs as a non-root user
+#   * does NOT run migrations on start
+#
+# That last one is deliberate. The dev image runs `alembic upgrade head` in
+# its CMD so a fresh `make dev` just works. In production, with more than
+# one replica, that means N containers racing to migrate the same database
+# on every deploy. Migrations are a separate, deliberate step - see
+# infra/scripts/deploy.sh.
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Bake the embedding model in so the container needs no network at runtime
+# and the first search is not a 20s cold start. Goes through the router
+# rather than naming the model here, keeping model strings in one place.
+ENV FASTEMBED_CACHE_PATH=/opt/fastembed_cache
+RUN python -c "from app.core.model_router import _get_local_model; _get_local_model()"
+
+# Non-root, and it must be able to read the baked model cache.
+RUN useradd --create-home --uid 1001 appuser \
+    && chown -R appuser:appuser /opt/fastembed_cache /app
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4).status==200 else 1)"
+
+# Two workers is a starting point for a small VPS, not a tuned value.
+# Note that the login throttle in auth_routes.py is per-process, so the
+# effective attempt ceiling is workers x MAX_ATTEMPTS - raise the worker
+# count and that limiter needs to move to Redis.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

@@ -36,10 +36,46 @@ class Settings(BaseSettings):
     # Prior turns replayed to the model for follow-up questions.
     chat_history_turns: int = 6
 
+    # --- automatic escalation (US-4) ---
+    # Hand a conversation to a human without waiting to be asked, when the
+    # guest says the assistant is not helping, or when the assistant has
+    # dead-ended several questions in a row.
+    chat_auto_escalate: bool = True
+    # Consecutive refusals before handing over, counting the one about to
+    # be sent. 3, not 2: two unanswerable questions in a row is common and
+    # unremarkable (a guest asking about a spa and a casino that do not
+    # exist). Three is a pattern. Every false escalation interrupts a real
+    # person, and staff who are pulled into three non-conversations stop
+    # trusting the queue. Set to 0 to disable this trigger alone.
+    chat_dead_end_turns: int = 3
+
+    # --- staff accounts / JWT ---
+    # Signing secret for staff session tokens. EMPTY MEANS LOGIN IS
+    # DISABLED (503), never a built-in default: a shipped default secret
+    # is forgeable by anyone who can read this repo.
+    jwt_secret: str = ""
+    # One working shift. Long enough that staff are not re-typing a
+    # password between guests, short enough that a laptop left open in the
+    # lobby stops being a session by morning.
+    jwt_expire_minutes: int = 12 * 60
+
+    # Secure flag on the session cookie. MUST be true anywhere the site is
+    # served over HTTPS; false locally because a Secure cookie is simply
+    # never stored on http://localhost, which looks like "login silently
+    # does nothing".
+    cookie_secure: bool = False
+    # Domain for the session cookie. Empty = host-only, which is right
+    # unless the API and the UI sit on different subdomains.
+    cookie_domain: str = ""
+
     # --- staff dashboard gate (Slice G) ---
     # Shared secret for the staff endpoints. Empty means the staff API is
-    # disabled entirely (503), never open. See app/core/auth.py for why this
-    # is a deployment gate rather than authentication.
+    # disabled entirely (503), never open.
+    #
+    # SUPERSEDED by JWT staff accounts. Kept working so an existing
+    # deployment does not break on upgrade, and so scripts and the eval
+    # harness have a way in. Leave it EMPTY in production - it is a
+    # second, weaker door into the same rooms.
     staff_api_token: str = ""
 
     # --- multilingual (Slice D) ---

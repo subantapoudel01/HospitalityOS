@@ -1,5 +1,12 @@
 # secrets
+# Anything .env* EXCEPT the committed *.example templates. Written as a
+# wildcard rather than a list because the next variant somebody adds
+# (.env.staging, .env.local) must be covered without anyone remembering
+# to come back here.
 .env
+.env.*
+!.env.example
+!.env.*.example
 
 # backend
 __pycache__/

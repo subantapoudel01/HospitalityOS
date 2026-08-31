@@ -182,6 +182,9 @@ class ConversationSummaryOut(BaseModel):
     last_message_preview: str | None
     # Escalated with the guest speaking last: nobody has replied yet.
     awaiting_staff: bool
+    # Why it was escalated (US-4). None means the guest asked outright.
+    escalation_trigger: str | None = None
+    escalation_reason: str | None = None
 
 
 class ConversationStatusIn(BaseModel):

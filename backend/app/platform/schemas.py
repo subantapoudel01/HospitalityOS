@@ -11,9 +11,10 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.platform.models import PolicyCategory
+from app.platform.users import UserRole
 
 
 class RoomTypeIn(BaseModel):
@@ -91,3 +92,58 @@ class HotelSummary(BaseModel):
     name: str
     city: str | None
     created_at: datetime
+
+
+# --- staff accounts ------------------------------------------------------
+
+
+def normalise_email(value: str) -> str:
+    """Lower-case and strip, everywhere an email is stored or looked up.
+
+    Without this, "Admin@Rupakot.com" registers as a second account that
+    the login form can never reach, because the form sends what the user
+    typed and the unique index is case-sensitive.
+    """
+    return (value or "").strip().lower()
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def _normalise(cls, v: str) -> str:
+        return normalise_email(v)
+
+
+class UserOut(BaseModel):
+    """Safe to return. Deliberately has no hashed_password field at all,
+    rather than one that something later forgets to exclude."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    full_name: str | None
+    role: UserRole
+    hotel_id: int | None
+    is_active: bool
+    last_login_at: datetime | None
+
+
+class LoginOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: datetime
+    user: UserOut
+
+
+class SessionOut(BaseModel):
+    """What GET /api/auth/me returns: the caller as the server sees them."""
+
+    authenticated: bool
+    method: str
+    user: UserOut | None = None
+    hotel_id: int | None = None
+    role: str = ""

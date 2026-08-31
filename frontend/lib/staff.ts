@@ -1,10 +1,13 @@
 // Staff dashboard API client.
 //
-// Every call carries X-Staff-Token. That token is a shared deployment gate,
-// not authentication — see backend/app/core/auth.py. It lives in
-// localStorage, which means anyone with access to the browser has it; that
-// is acceptable for a pilot behind a gate and not acceptable once real
-// staff accounts exist.
+// Every call carries the staff session JWT via Authorization: Bearer, built
+// from the session cookie in lib/auth.ts.
+//
+// X-Staff-Token is still sent when one is present, but only as a fallback
+// for a deployment mid-upgrade. It is a shared secret with no identity and
+// no tenant scoping, so a JWT always wins - see backend/app/core/auth.py.
+
+import { authHeader } from "./auth";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const STORAGE_KEY = "hospitalityos.staffToken";
@@ -41,6 +44,9 @@ export interface ConversationSummary {
   last_message_at: string | null;
   last_message_preview: string | null;
   awaiting_staff: boolean;
+  /** Why it was escalated (US-4). null means the guest asked outright. */
+  escalation_trigger: string | null;
+  escalation_reason: string | null;
 }
 
 export interface TranscriptMessage {
@@ -136,9 +142,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(BASE + path, {
       ...init,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        "X-Staff-Token": getToken(),
+        ...authHeader(),
+        // Legacy fallback. Empty string when unset, which the backend
+        // treats as absent rather than as a wrong token.
+        ...(getToken() ? { "X-Staff-Token": getToken() } : {}),
         ...(init?.headers || {}),
       },
     });
@@ -216,3 +226,47 @@ export const getDegradation = (hotelId: number) =>
   request<Degradation>(
     "/api/receptionist/staff/degradation?hotel_id=" + hotelId
   );
+
+/**
+ * Download booking inquiries as CSV (US-8).
+ *
+ * Fetched as a blob rather than linked with <a href>: the request needs
+ * the Authorization header, and a plain navigation cannot carry one. The
+ * object URL is revoked immediately - leaving it alive pins the whole file
+ * in memory for the life of the tab.
+ */
+export async function downloadInquiriesCsv(hotelId: number, status?: string) {
+  const res = await fetch(
+    BASE + "/api/receptionist/staff/booking-inquiries.csv" + q(hotelId, status),
+    {
+      credentials: "include",
+      headers: {
+        ...authHeader(),
+        ...(getToken() ? { "X-Staff-Token": getToken() } : {}),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = (body as { detail?: unknown } | null)?.detail;
+    throw new StaffApiError(
+      typeof detail === "string" ? detail : "Export failed (" + res.status + ").",
+      res.status
+    );
+  }
+
+  // The server names the file; fall back only if the header is missing.
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const name = match ? match[1] : "booking-inquiries.csv";
+
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

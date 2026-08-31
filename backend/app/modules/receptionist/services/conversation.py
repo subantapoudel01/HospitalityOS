@@ -43,7 +43,12 @@ from app.modules.receptionist.models import (
 )
 from app.modules.receptionist.models import BookingInquiry
 from app.modules.receptionist.rag import retrieval
-from app.modules.receptionist.services import booking, intent as intent_svc, replies
+from app.modules.receptionist.services import (
+    booking,
+    frustration,
+    intent as intent_svc,
+    replies,
+)
 from app.modules.receptionist.services.intent import GuestIntent
 from app.modules.receptionist.services.language import (
     Detection,
@@ -107,8 +112,14 @@ Answer using ONLY the CONTEXT below. The context is this hotel's own
 knowledge base.
 
 Rules:
-- If the context does not contain the answer, say you do not have that
-  information and offer to fetch a staff member. Do not guess.
+- If the context does not contain the answer, reply with EXACTLY this
+  sentence and nothing else:
+    {refusal_text}
+  Do not guess, and do not reword it. The exact wording matters: the
+  system recognises this sentence, and uses it to understand "yes" as
+  "yes, fetch someone" and to notice when a guest has hit several dead
+  ends in a row. A paraphrase reads the same to the guest and is
+  invisible to both.
 - Never invent prices, times, room names, or policies. Never fall back on
   general knowledge about hotels.
 - Do not INTERPRET context you cannot read with confidence. If the only
@@ -335,6 +346,18 @@ async def send_message(
             model=ESCALATION_MODEL,
         )
 
+    # --- 0c. the guest has told us this is not working (US-4) ------------
+    # Checked before classification, so it costs nothing and still works
+    # when the provider is rate-limited - which is exactly when guests
+    # start getting refusals and saying so.
+    if settings.chat_auto_escalate:
+        signal = frustration.detect_frustration(text)
+        if signal is not None:
+            return await _escalate(
+                db, conversation=conversation, language=language,
+                signal=signal,
+            )
+
     # --- 1. intent, BEFORE any retrieval ---------------------------------
     decision = await run_in_threadpool(
         lambda: intent_svc.classify(
@@ -445,6 +468,35 @@ async def send_message(
     relevant = [h for h in hits if h.score >= settings.chat_min_score]
 
     if not relevant:
+        # --- 4a. going nowhere: hand over INSTEAD of refusing again ------
+        # Decided before the refusal is written, so the guest gets one
+        # message rather than "I don't have that information" followed
+        # immediately by "I've asked a staff member" - saying both is the
+        # exact clumsiness this is meant to remove.
+        #
+        # The guest may be perfectly polite throughout. A run of refusals
+        # usually means the knowledge base is missing something, and
+        # nobody finds out unless a person is pulled in.
+        if settings.chat_auto_escalate:
+            signal = frustration.detect_dead_end(
+                await get_messages(db, conversation.id),
+                refusal_texts=frustration.refusal_text_set(REFUSALS),
+                threshold=settings.chat_dead_end_turns,
+                pending_refusal=True,
+            )
+            if signal is not None:
+                _log_ai_request(
+                    db,
+                    conversation_id=conversation.id,
+                    model_used=NO_MODEL,
+                    purpose=AiPurpose.chat,
+                    chunk_ids=[h.chunk_id for h in hits],
+                )
+                return await _escalate(
+                    db, conversation=conversation, language=language,
+                    signal=signal,
+                )
+
         reply_text = REFUSALS.get(language, REFUSALS[Language.en])
         db.add(
             Message(
@@ -452,6 +504,7 @@ async def send_message(
                 content=reply_text, language_detected=language.value,
             )
         )
+
         _log_ai_request(
             db,
             conversation_id=conversation.id,
@@ -479,6 +532,9 @@ async def send_message(
         hotel_name=hotel.name,
         currency=hotel.currency or "NPR",
         reply_instruction=reply_instruction(language),
+        # In the guest's own language, so a Nepali refusal is recognisable
+        # too rather than only the English one.
+        refusal_text=REFUSALS.get(language, REFUSALS[Language.en]),
         context=_build_context_block(relevant),
     )
     history = await get_messages(db, conversation.id)
@@ -524,11 +580,34 @@ async def send_message(
     )
     await db.flush()
 
+    # --- 5b. the model declined -----------------------------------------
+    # Retrieval cleared the floor but the passages did not actually answer,
+    # so the prompt had the model reply with the fixed refusal. To the
+    # guest that is a dead end exactly like the deterministic one above,
+    # and it is by far the more common of the two once a hosted provider
+    # is generating: the floor only catches questions that retrieve
+    # nothing at all.
+    declined = replies.is_fixed_refusal(reply_text)
+    if declined and settings.chat_auto_escalate:
+        signal = frustration.detect_dead_end(
+            await get_messages(db, conversation.id),
+            refusal_texts=frustration.refusal_text_set(REFUSALS),
+            threshold=settings.chat_dead_end_turns,
+        )
+        if signal is not None:
+            return await _escalate(
+                db, conversation=conversation, language=language,
+                signal=signal,
+            )
+
     return ChatTurn(
         conversation_id=conversation.id,
         reply=reply_text,
         grounded=True,
-        intent=ChatIntent.answer,
+        # Report what actually happened. Calling a decline an "answer"
+        # is what made the golden-set grader mis-score refusals, and it
+        # would hide the same thing from the dashboard.
+        intent=ChatIntent.refusal if declined else ChatIntent.answer,
         language=language.value,
         citations=[
             Citation(
@@ -553,15 +632,24 @@ async def _escalate(
     conversation: Conversation,
     language: Language,
     telemetry: model_router.ChatResult | None = None,
+    signal: frustration.Signal | None = None,
 ) -> ChatTurn:
     """Flag for staff and confirm - the same effect as the widget button.
 
     The confirmation is fixed text emitted only AFTER the status actually
     changes. Letting a model word this is how the guest gets told "I will
     forward your request" while nothing is forwarded.
+
+    `signal` is set when the AI escalated on its own (US-4). It is stored
+    so staff see WHY before opening the transcript - "the guest said this
+    was not helping" and "the guest asked for a person" need different
+    opening lines. None means the guest asked.
     """
     conversation.status = ConversationStatus.escalated
     conversation.resolved_at = None
+    if signal is not None:
+        conversation.escalation_trigger = signal.trigger
+        conversation.escalation_reason = signal.reason
 
     reply_text = ESCALATION_CONFIRMED.get(
         language, ESCALATION_CONFIRMED[Language.en]
