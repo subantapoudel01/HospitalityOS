@@ -65,6 +65,11 @@ class SearchHit(BaseModel):
     chunk_text: str
     score: float
     token_count: int
+    # The two halves behind `score`. Exposed because this endpoint exists
+    # to explain a wrong answer, and "the vector missed it and lexical
+    # carried it" is not recoverable from the combined number alone.
+    vector_score: float = 0.0
+    lexical_score: float = 0.0
 
 
 class SearchOut(BaseModel):

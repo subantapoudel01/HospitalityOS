@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.db import get_db
-from app.platform import models, schemas
+from app.platform import hooks, models, schemas
 
 router = APIRouter(prefix="/platform", tags=["platform"])
 
@@ -77,6 +77,11 @@ async def create_hotel(payload: schemas.HotelIn, db: AsyncSession = Depends(get_
     _apply_children(hotel, payload)
 
     db.add(hotel)
+    await db.flush()
+    # Before the commit, so the knowledge base and the profile land in one
+    # transaction. See app/platform/hooks.py for why a failure here is
+    # allowed to take the save down with it.
+    await hooks.hotel_saved(db, hotel.id)
     await db.commit()
     return await _load_hotel(hotel.id, db)
 
@@ -104,6 +109,11 @@ async def update_hotel(
     ).items():
         setattr(hotel, field, value)
     _apply_children(hotel, payload)
+    await db.flush()
+    # Staff editing a policy here expect guests to hear the new wording.
+    # Before this fired, /setup wrote the row and nothing else, so the
+    # assistant kept quoting whatever was last synced by hand.
+    await hooks.hotel_saved(db, hotel_id)
 
     await db.commit()
     return await _load_hotel(hotel_id, db)

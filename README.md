@@ -53,7 +53,12 @@ POST   /api/receptionist/knowledge/search          ask a question, see ranked ch
 ```
 
 `sync-policies` pulls in **policies and room types** — everything staff
-entered at `/setup`. Room types were originally left out, which meant a
+entered at `/setup`, and it now runs automatically on every save. Before
+that, a staff member could correct a policy, see "Saved", and have guests
+told the old wording indefinitely; nothing in the UI hinted at a second
+step. It fires through `app/platform/hooks.py` rather than a direct call,
+because platform must never import from a module — the dependency arrow is
+what keeps modules separable, and there is a test guarding it. Room types were originally left out, which meant a
 rate card was visible in the form and invisible to guests: the assistant
 refused to quote a price the hotel had already given it. Syncing from the
 same rows keeps `/setup` the single source of truth, so editing a rate and
@@ -67,15 +72,57 @@ per-room documents "What is the cheapest room you have?" was measured as a
 refusal with every rate sitting in the knowledge base. Stating the
 comparison beats loosening the grounding instruction.
 
-**Known retrieval gap.** Brand names embed poorly in
-`paraphrase-multilingual-MiniLM-L12-v2`. Measured against the Rupakot
-corpus: `Do you take cash?` scores 0.397 and `Can I pay with eSewa?` 0.384,
-both correct — but `Do you take eSewa?` scores 0.177 and `Do you take
-Visa?` returns a *lake* document at 0.240. The query embedding is dominated
-by "Do you take" and the proper noun contributes little. It fails safe (a
-refusal, not a wrong answer) and now escalates to a human after three in a
-row. The fix is hybrid retrieval — vector plus a lexical match on
-distinctive terms — which is not yet built.
+Saving at `/setup` re-syncs automatically — see **Hybrid retrieval** below
+for why that had to go through an event rather than a direct call.
+
+## Hybrid retrieval
+
+Vector search alone is poor at rare literal tokens. Measured on the Rupakot
+corpus, before and after:
+
+| Query | Before | After | Top hit before |
+|---|---|---|---|
+| `Do you take eSewa?` | 0.177 | **0.542** | "How long to allow for each experience" |
+| `Do you take Visa?` | 0.240 | **0.603** | "Begnas Lake and Rupa Lake" |
+| `Do you take Fonepay?` | — | **0.585** | |
+| `Do you take cash?` | 0.397 | 0.699 | Payment policy (already correct) |
+| `Do you take Khalti?` | 0.260 | 0.260 | *unchanged — not in the corpus* |
+
+`knowledge_chunks.search_vector` is a **generated** `tsvector` (migration
+0009), so Postgres maintains it, no ingestion path can forget it, and the
+existing chunks backfilled without re-embedding.
+
+Three decisions worth knowing:
+
+- **Not `plainto_tsquery`.** It ANDs the terms, so `take & esewa` scores
+  *zero* against a policy that says "accept". Terms are scored
+  independently and summed instead.
+- **IDF, not `ts_rank`.** `ts_rank_cd` scores "esewa" the same as "room".
+  In this corpus `esewa` is in 1 chunk of 37 and `room` in 8, so terms are
+  weighted `ln(1 + N/df)` from the hotel's own corpus.
+- **Not normalised per query.** Min-max normalising would make every
+  query's best hit 1.0, and `chat_min_score` is an *absolute* threshold —
+  it would stop filtering and start admitting the best of a bad set.
+
+```
+lexical  = Σ idf(matched terms) / Σ idf(scoring terms)     → [0,1]
+combined = 1 − (1 − vector) · (1 − CHAT_LEXICAL_WEIGHT × lexical)
+```
+
+The invariant that let this ship without recalibrating anything: **when
+`lexical = 0`, `combined = vector` exactly.** Every query the lexical side
+cannot help behaves bit-for-bit as before. Lexical evidence only ever
+raises a score.
+
+`/knowledge/search` returns `vector_score` and `lexical_score` alongside
+`score`, so a wrong answer can be traced to which half caused it.
+
+**What it does not fix:** a brand the hotel never mentioned. `Khalti` has
+nothing to match and stays on the weak vector path — correctly refused
+rather than answered from a policy that does not list it.
+
+Set `CHAT_HYBRID_RETRIEVAL=false` to fall back to pure vector search; the
+scores are compatible, so the floor needs no adjustment either way.
 
 `/search` returns each hit with a similarity score and its source document, so a
 wrong answer can be traced back to the chunk that caused it. Try it from

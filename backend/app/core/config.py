@@ -33,6 +33,21 @@ class Settings(BaseSettings):
     # line of defence. 0.20 is set low deliberately: raising it starts
     # refusing real questions long before it stops the dangerous ones.
     chat_min_score: float = 0.20
+    # --- hybrid retrieval ---
+    # Combine pgvector similarity with Postgres full-text search, so a rare
+    # literal token (a payment brand, a room name) is found even when the
+    # sentence around it drowns the embedding. Measured before this
+    # existed: "Do you take eSewa?" scored 0.177 and returned a passage
+    # about lakes. Set false to fall back to pure vector search - the two
+    # are score-compatible, so the floor below needs no adjustment.
+    chat_hybrid_retrieval: bool = True
+    # Ceiling on what lexical evidence alone contributes. At 0.5 a perfect
+    # lexical match on an otherwise unrelated chunk (vector 0.05) reaches
+    # 0.53 - above the floor, deliberately: a term appearing in exactly one
+    # chunk of the corpus is worth putting in front of the model. Raising
+    # this admits more marginal passages; lowering it re-opens the bug.
+    chat_lexical_weight: float = 0.5
+
     # Prior turns replayed to the model for follow-up questions.
     chat_history_turns: int = 6
 

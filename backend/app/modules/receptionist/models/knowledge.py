@@ -11,7 +11,9 @@ import enum
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy import (
+    Computed,
     DateTime,
     Enum,
     ForeignKey,
@@ -87,6 +89,13 @@ class KnowledgeChunk(Base):
         # drift check would ask for a migration that drops and recreates a
         # perfectly good index on every deployment.
         Index("ix_knowledge_chunks_document_id", "knowledge_document_id"),
+        # GIN over the generated tsvector. Written once per ingest, read on
+        # every guest message, so the slower build is the right trade.
+        Index(
+            "ix_knowledge_chunks_search_vector",
+            "search_vector",
+            postgresql_using="gin",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -108,6 +117,19 @@ class KnowledgeChunk(Base):
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Lexical half of hybrid retrieval. GENERATED, so Postgres maintains it
+    # and no ingestion path can forget to - which also means the column
+    # backfilled itself for every chunk that already existed.
+    #
+    # The 'english' config was chosen on measurement, not habit: it strips
+    # the stopwords that were drowning brand-name queries ("do you take"),
+    # keeps esewa/visa/fonepay intact, and leaves Devanagari untouched.
+    # See migration 0009 and rag/retrieval.py.
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', chunk_text)", persisted=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
