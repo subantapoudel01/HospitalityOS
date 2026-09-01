@@ -139,11 +139,26 @@ failure aborts with the old ones still serving.
 
 ### Create the first login
 
+There is no hotel yet, so the first account has to be cross-tenant:
+
 ```bash
-docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.prod run --rm backend python -m app.scripts.seed_admin --email admin@yourhotel.com --hotel-id 1
+docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.prod run --rm backend python -m app.scripts.seed_admin --email you@yourhotel.com --hotel-id 0 --role platform_admin
 ```
 
-The password is generated and **printed once**. Copy it immediately.
+The password is generated and **printed once**. Copy it immediately — it
+is not stored anywhere readable and there is no reset screen.
+
+Use a **real email domain**. Reserved TLDs (`.test`, `.local`, `.invalid`,
+`.example`) are refused: the login endpoint rejects them as undeliverable,
+so an account created with one could never sign in. The script now refuses
+them up front rather than letting you find out at the login screen.
+
+Once the property exists at `/setup`, create the per-property accounts
+staff will actually use, scoped to it:
+
+```bash
+docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.prod run --rm backend python -m app.scripts.seed_admin --email manager@yourhotel.com --hotel-id 1 --role admin
+```
 
 Then sign in at `https://reception.yourhotel.com/staff/login`.
 
@@ -202,6 +217,22 @@ included one, `alembic downgrade -1` first — and confirm it is reversible,
 which CI checks on every push.
 
 ---
+
+## Verified before you run it
+
+The whole stack was dry-run locally against a throwaway domain before this
+runbook was updated — build, migrate, start, route, log in, save a hotel,
+retrieve. Three things it found, all now fixed:
+
+| Found | Effect if it had shipped |
+|---|---|
+| `NEXT_PUBLIC_API_URL=""` fell through `\|\|` to the dev fallback | Nine copies of `http://localhost:8000` baked into the bundle; every visitor's browser calling its own machine. CI now greps the built bundle. |
+| `deploy.sh` migrated with `--no-deps` | Postgres never started, so the **first** deploy failed while every redeploy would have worked. |
+| `traefik:v3.2` against Docker Engine 29.x | No routers discovered, every request 404s, all containers reporting healthy. Pinned to `v3.6`. |
+
+That last one is worth knowing about generally: Traefik reports it as an
+empty `Error response from daemon:` in its own log and nothing else looks
+wrong. If routing 404s after a future Docker upgrade, check that first.
 
 ## Honest limits of this setup
 

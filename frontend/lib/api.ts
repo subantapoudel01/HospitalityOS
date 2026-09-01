@@ -6,10 +6,11 @@
 // header changes nothing today. It is here so that gating them is a
 // backend-only change rather than one that also has to find every caller.
 
+import { API_BASE } from "./apiBase";
 import type { HotelIn, HotelOut, HotelSummary } from "./types";
 import { authHeader } from "./auth";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE = API_BASE;
 
 /** Field-level errors keyed by a dotted path, e.g. "room_types.0.base_rate". */
 export type FieldErrors = Record<string, string>;

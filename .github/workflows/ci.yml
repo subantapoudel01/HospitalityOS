@@ -171,8 +171,28 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
+          # Empty, matching the production image: Traefik serves the API
+          # from the same origin, so the browser uses relative paths.
+          # Building with a localhost value here would make the guard
+          # below meaningless.
+          NEXT_PUBLIC_API_URL: ""
         run: npm run build
+
+      - name: Production bundle must not point at localhost
+        working-directory: frontend
+        # This shipped once. `NEXT_PUBLIC_API_URL=""` combined with
+        # `|| "http://localhost:8000"` fell through to the fallback,
+        # because "" is falsy, and Next inlines these at build time - so
+        # nine copies of a localhost URL were baked into every page and
+        # every visitor's browser would have called its own machine.
+        # Caught by grepping a built image, so CI greps one too.
+        run: |
+          if grep -rq "localhost:8000" .next/static --include="*.js"; then
+            echo "::error::The production bundle contains a localhost API URL."
+            grep -rlo "localhost:8000" .next/static --include="*.js" || true
+            exit 1
+          fi
+          echo "OK: no localhost API URL in the bundle"
 
   audit:
     name: Dependency audit

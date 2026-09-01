@@ -2,20 +2,23 @@
 
 import { useEffect, useState } from "react";
 
+import { API_BASE } from "@/lib/apiBase";
+
 export default function Home() {
   const [platform, setPlatform] = useState<string>("checking...");
   const [receptionist, setReceptionist] = useState<string>("checking...");
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-    fetch(`${apiUrl}/health`)
+    // Was `process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"`,
+    // which baked a localhost URL into the production bundle - "" is
+    // falsy. See lib/apiBase.ts.
+    fetch(`${API_BASE}/health`)
       .then((res) => res.json())
       .then((data) => setPlatform(data.status ?? "unknown"))
       .catch(() => setPlatform("unreachable"));
 
     // Proves the receptionist module is mounted into the platform app.
-    fetch(`${apiUrl}/api/receptionist/status`)
+    fetch(`${API_BASE}/api/receptionist/status`)
       .then((res) => res.json())
       .then((data) => setReceptionist(data.status ?? "unknown"))
       .catch(() => setReceptionist("unreachable"));

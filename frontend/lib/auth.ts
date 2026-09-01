@@ -15,7 +15,9 @@
 // signature on every request. Everything in this file is about showing the
 // right screen, not about deciding who is allowed in.
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "./apiBase";
+
+const BASE = API_BASE;
 
 export const COOKIE_NAME = "hos_staff_session";
 

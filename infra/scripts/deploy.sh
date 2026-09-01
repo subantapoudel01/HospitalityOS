@@ -38,19 +38,35 @@ if grep -qE '^STAFF_API_TOKEN=.+' .env.prod; then
   echo "         Leave it empty unless you are mid-upgrade."
 fi
 
-echo "==> 1/4  Building images"
+echo "==> 1/5  Building images"
 $COMPOSE build
 
-echo "==> 2/4  Running migrations"
-# --rm one-off: exits when alembic does, so a failure here stops the
-# deploy with the old containers still serving.
-$COMPOSE run --rm --no-deps -e SKIP_HEALTHCHECK=1 backend alembic upgrade head \
+echo "==> 2/5  Starting the database"
+# Postgres must be up and healthy BEFORE migrations. An earlier version of
+# this script ran the migration with --no-deps, so on a FIRST deploy -
+# when nothing is running yet - alembic came up against a database that
+# was not there. It worked on every redeploy and failed on the one deploy
+# that mattered.
+$COMPOSE up -d postgres redis
+
+echo "    waiting for postgres"
+for _ in $(seq 1 30); do
+  $COMPOSE exec -T postgres pg_isready -q 2>/dev/null && break
+  sleep 2
+done
+$COMPOSE exec -T postgres pg_isready -q 2>/dev/null \
+  || fail "postgres did not become ready. Check: $COMPOSE logs postgres"
+
+echo "==> 3/5  Running migrations"
+# A one-off container that exits when alembic does, so a failure here
+# stops the deploy with the old app containers still serving.
+$COMPOSE run --rm backend alembic upgrade head \
   || fail "migrations failed. The running site was not touched."
 
-echo "==> 3/4  Starting services"
+echo "==> 4/5  Starting services"
 $COMPOSE up -d --remove-orphans
 
-echo "==> 4/4  Waiting for health"
+echo "==> 5/5  Waiting for health"
 domain=$(grep -E '^DOMAIN=' .env.prod | head -1 | cut -d= -f2-)
 for i in $(seq 1 30); do
   if curl -fsS --max-time 5 "https://${domain}/health" >/dev/null 2>&1; then

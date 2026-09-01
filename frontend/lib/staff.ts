@@ -7,9 +7,10 @@
 // for a deployment mid-upgrade. It is a shared secret with no identity and
 // no tenant scoping, so a JWT always wins - see backend/app/core/auth.py.
 
+import { API_BASE } from "./apiBase";
 import { authHeader } from "./auth";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE = API_BASE;
 const STORAGE_KEY = "hospitalityos.staffToken";
 
 export type ConversationStatus = "active" | "escalated" | "resolved";

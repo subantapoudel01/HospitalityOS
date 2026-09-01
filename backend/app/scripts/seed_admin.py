@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 from app.core.security import MAX_PASSWORD_BYTES, hash_password
 from app.platform.models import Hotel
-from app.platform.schemas import normalise_email
+from app.platform.schemas import LoginIn, normalise_email
 from app.platform.users import CROSS_TENANT_ROLES, User, UserRole
 
 # Ambiguous glyphs removed: someone will read this off a screen and type it
@@ -52,6 +52,30 @@ def _session_maker() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
+def validate_login_email(email: str) -> str | None:
+    """Reject anything the login endpoint would reject.
+
+    The seed script used to accept any string, so it could create an
+    account that could never sign in - and you find that out at the worst
+    possible moment, mid-deployment, with the password already printed
+    once and gone. `admin@rupakot.test` is the trap: a reserved TLD that
+    email-validator refuses as undeliverable.
+
+    Validated with the same model the endpoint uses, so the two can never
+    disagree about what a usable address is.
+    """
+    try:
+        LoginIn(email=email, password="placeholder-not-used")
+    except Exception as exc:  # noqa: BLE001 - pydantic's message is the point
+        detail = str(exc).splitlines()
+        reason = next(
+            (line.strip() for line in detail if "value is not a valid" in line),
+            detail[-1].strip() if detail else "invalid",
+        )
+        return reason
+    return None
+
+
 async def seed(
     *,
     email: str,
@@ -62,6 +86,19 @@ async def seed(
     reset_password: bool,
 ) -> int:
     email = normalise_email(email)
+
+    problem = validate_login_email(email)
+    if problem is not None:
+        print(
+            f"error: {email!r} cannot be used to sign in.\n"
+            f"  {problem}\n"
+            "  Reserved TLDs (.test, .local, .invalid, .example) are "
+            "refused as undeliverable.\n"
+            "  Use a real address - it is how the account is identified, "
+            "and how a password reset would reach them.",
+            file=sys.stderr,
+        )
+        return 2
 
     if hotel_id is None and role not in CROSS_TENANT_ROLES:
         print(

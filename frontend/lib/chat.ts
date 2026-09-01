@@ -3,7 +3,9 @@
 // No auth header: the widget is public by design. hotel_id identifies the
 // property; see the security note on the backend routes.
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "./apiBase";
+
+const BASE = API_BASE;
 
 export interface Citation {
   chunk_id: number;

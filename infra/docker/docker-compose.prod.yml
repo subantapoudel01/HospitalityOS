@@ -17,7 +17,13 @@ name: hospitalityos
 
 services:
   traefik:
-    image: traefik:v3.2
+    # v3.6, not v3.2. Found in a local dry run against Docker Engine 29.7:
+    # v3.2's embedded Docker client cannot negotiate with a 29.x daemon and
+    # fails with an empty "Error response from daemon:", so NO routers are
+    # discovered and every request 404s while all containers report
+    # healthy. A fresh Ubuntu install from Docker's apt repo gets 29.x, so
+    # this would have failed on the server too.
+    image: traefik:v3.6
     restart: unless-stopped
     command:
       - --providers.docker=true
