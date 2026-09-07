@@ -2,11 +2,11 @@
 ## HospitalityOS — AI Receptionist MVP and beyond
 Version 1.0 | Stage 1 deliverable
 
-See PROJECT_MANAGEMENT.txt for the detailed 7-stage execution plan
+See ../product/PROJECT_MANAGEMENT.txt for the detailed 7-stage execution plan
 (Stages 1-7, ~56 days). This document is the milestone-level view plus
 what comes after the pilot.
 
-## MVP Milestones (maps to PROJECT_MANAGEMENT.txt stages)
+## MVP Milestones (maps to ../product/PROJECT_MANAGEMENT.txt stages)
 
 | Milestone | Stage | Target day |
 |---|---|---|

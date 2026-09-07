@@ -110,6 +110,6 @@ layer, given this is genuinely multi-tenant SaaS from day one.
 
 Single VPS (or small managed cluster), Docker Compose for pilot scale —
 no need for Kubernetes at 1-2 tenant pilot scale. Staging IS production
-for the pilot hotels (see PROJECT_MANAGEMENT.txt, Stage 5). Revisit
+for the pilot hotels (see ../product/PROJECT_MANAGEMENT.txt, Stage 5). Revisit
 topology only once paying-customer count justifies the operational
 overhead of a more elaborate setup.

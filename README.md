@@ -15,7 +15,7 @@ backend/app/modules/     one folder per module — today just receptionist/
 
 Dependencies point one way — **modules → platform → core**. Platform code must
 never import from a module; the moment it does, modules stop being separable.
-See `FOLDER_STRUCTURE.txt` for the full tree and `docs/01-platform/` for design docs.
+See `docs/product/FOLDER_STRUCTURE.txt` for the full tree and `docs/01-platform/` for design docs.
 
 ## Quick start
 
@@ -270,7 +270,7 @@ so the handoff is visible on both sides. Marking a conversation resolved
 records `resolved_at`; reopening clears it.
 
 Both the dashboard and the widget poll every 5s and **pause while the tab is
-hidden**. This deviates from `PROJECT_MANAGEMENT.txt`, which specifies
+hidden**. This deviates from `docs/product/PROJECT_MANAGEMENT.txt`, which specifies
 WebSocket — polling was chosen deliberately for pilot scale.
 
 ### Access
@@ -419,7 +419,7 @@ Devanagari and Romanized Nepali, and prints any case listed in `KNOWN_GAPS`.
 
 ## Where things stand
 
-Stage 3, vertical slices — see `PROJECT_MANAGEMENT.txt` for the full plan.
+Stage 3, vertical slices — see `docs/product/PROJECT_MANAGEMENT.txt` for the full plan.
 
 - **Slice A — Hotel setup** (done): staff enter the property profile, room types
   and rates, and policies at `/setup`. Stored in Postgres via `app/platform/`.

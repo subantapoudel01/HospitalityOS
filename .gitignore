@@ -26,6 +26,12 @@ frontend/next-env.d.ts.bak
 # never reach a public repository.
 booking-inquiries-*.csv
 backups/
+# Database dumps, wherever they land. backups/ is already ignored, but a
+# pg_dump run from the repo root is not - and a dump is every guest
+# transcript in one file.
+*.dump
+*.sql.gz
+*.sql.bz2
 
 # misc
 .DS_Store

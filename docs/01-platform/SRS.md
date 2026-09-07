@@ -79,4 +79,4 @@ NFR-7  Auditability: every escalation and every AI answer must be traceable
   supported tools (FastAPI, Next.js, Postgres) over exotic ones.
 
 ## 6. Acceptance Criteria (MVP-level)
-See PROJECT_MANAGEMENT.txt "Definition of Done — MVP" for the full gate.
+See ../product/PROJECT_MANAGEMENT.txt "Definition of Done — MVP" for the full gate.
