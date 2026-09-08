@@ -10,7 +10,7 @@ happened: a payment policy was corrected in the UI and the assistant went
 on quoting the previous text.
 
 The obvious fix - platform/api/routes.py calling
-`receptionist.rag.ingest.sync_hotel_setup` - would invert the dependency
+`receptionist.rag.sync.sync_hotel_setup` - would invert the dependency
 this repo is organised around. Dependencies run modules -> platform ->
 core, and the moment platform imports a module, modules stop being
 separable and the second module cannot be added without touching the

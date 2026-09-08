@@ -18,7 +18,7 @@ import pytest
 from sqlalchemy import select
 
 from conversa.core import model_router
-from app.modules.receptionist.models import KnowledgeDocument
+from conversa.rag.models import KnowledgeDocument
 from app.platform import hooks
 from app.platform.api import routes as platform_routes
 from app.platform.models import Hotel, PolicyCategory

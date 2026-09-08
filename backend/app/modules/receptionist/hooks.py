@@ -27,6 +27,6 @@ async def resync_knowledge_base(db: AsyncSession, hotel_id: int) -> None:
     Imported lazily so that merely registering the listener does not pull
     the embedding model into every process that touches platform code.
     """
-    from app.modules.receptionist.rag import ingest
+    from app.modules.receptionist.rag import sync
 
-    await ingest.sync_hotel_setup(db, hotel_id=hotel_id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel_id)

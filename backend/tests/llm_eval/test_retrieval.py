@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.receptionist.models import KnowledgeSourceType
-from app.modules.receptionist.rag import ingest, retrieval
+from conversa.rag.models import KnowledgeSourceType
+from conversa.rag import ingest, retrieval
 from tests.llm_eval.golden_set import (
     CASES,
     DOCUMENTS,

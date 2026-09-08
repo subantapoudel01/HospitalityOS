@@ -15,8 +15,10 @@ import pytest
 from sqlalchemy import select
 
 from conversa.core import model_router
-from app.modules.receptionist.models import KnowledgeDocument
-from app.modules.receptionist.rag import ingest, retrieval
+from conversa.rag.models import KnowledgeDocument
+from conversa.rag import ingest
+from conversa.rag import retrieval
+from app.modules.receptionist.rag import sync
 from app.platform.models import HotelPolicy, PolicyCategory, RoomType
 
 pytestmark = pytest.mark.asyncio
@@ -68,7 +70,7 @@ async def _titles(db, hotel_id) -> list[str]:
 
 async def test_room_types_are_synced(db, hotel):
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     titles = await _titles(db, hotel.id)
     assert any("Deluxe Room" in t for t in titles)
@@ -78,7 +80,7 @@ async def test_room_types_are_synced(db, hotel):
 async def test_policies_are_still_synced(db, hotel):
     """The room-type addition must not have displaced them."""
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
     assert any("Cancellation" in t for t in await _titles(db, hotel.id))
 
 
@@ -86,7 +88,7 @@ async def test_a_rate_question_retrieves_the_room(db, hotel):
     """The point of the whole exercise: a guest asking about price gets
     the rate card back, not a refusal."""
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     hits = await retrieval.search(
         db, hotel_id=hotel.id, query="How much is a deluxe room per night?",
@@ -99,7 +101,7 @@ async def test_a_rate_question_retrieves_the_room(db, hotel):
 
 async def test_an_occupancy_question_retrieves_the_room(db, hotel):
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     hits = await retrieval.search(
         db, hotel_id=hotel.id, query="Which room sleeps four people?", limit=3
@@ -122,7 +124,7 @@ async def test_the_rate_is_written_the_way_a_guest_reads_it(db, hotel):
         hotel_id=hotel.id, name="Deluxe Room", base_rate=Decimal("10500.00"),
         max_occupancy=2, amenities=[],
     )
-    body = ingest._room_type_document(room, "NPR")
+    body = sync._room_type_document(room, "NPR")
     assert "NPR 10,500 per night" in body
     assert "10,5 " not in body
     assert ".00" not in body
@@ -133,7 +135,7 @@ async def test_paise_are_kept_when_the_rate_actually_has_them():
 
     room = RT(name="Odd Rate", base_rate=Decimal("1234.50"),
               max_occupancy=2, amenities=[])
-    assert "1,234.50" in ingest._room_type_document(room, "NPR")
+    assert "1,234.50" in sync._room_type_document(room, "NPR")
 
 
 async def test_nothing_is_invented_for_a_bare_room_type():
@@ -143,7 +145,7 @@ async def test_nothing_is_invented_for_a_bare_room_type():
 
     room = RT(name="Simple Room", base_rate=Decimal("2000"),
               max_occupancy=1, amenities=[], description=None)
-    body = ingest._room_type_document(room, "NPR")
+    body = sync._room_type_document(room, "NPR")
     assert "includes" not in body.lower()
     assert "1 guest" in body, "singular, not '1 guests'"
 
@@ -155,10 +157,10 @@ async def test_resyncing_replaces_rather_than_duplicates(db, hotel):
     """Staff will press this after every edit. Duplicates would give
     retrieval several copies of the same rate to disagree about."""
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
     first = await _titles(db, hotel.id)
 
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
     second = await _titles(db, hotel.id)
 
     assert sorted(first) == sorted(second)
@@ -169,7 +171,7 @@ async def test_an_edited_rate_reaches_guests_after_a_resync(db, hotel):
     """/setup stays the single source of truth: change the rate there,
     re-sync, and the assistant quotes the new one."""
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     room = (
         await db.execute(
@@ -180,7 +182,7 @@ async def test_an_edited_rate_reaches_guests_after_a_resync(db, hotel):
     ).scalar_one()
     room.base_rate = Decimal("12000.00")
     await db.flush()
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     hits = await retrieval.search(
         db, hotel_id=hotel.id, query="deluxe room price per night", limit=3
@@ -192,7 +194,7 @@ async def test_an_edited_rate_reaches_guests_after_a_resync(db, hotel):
 
 async def test_a_deleted_room_type_disappears(db, hotel):
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     room = (
         await db.execute(
@@ -203,7 +205,7 @@ async def test_a_deleted_room_type_disappears(db, hotel):
     ).scalar_one()
     await db.delete(room)
     await db.flush()
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     assert not any("Family Cottage" in t for t in await _titles(db, hotel.id))
 
@@ -211,7 +213,7 @@ async def test_a_deleted_room_type_disappears(db, hotel):
 async def test_a_hotel_with_no_room_types_still_syncs_policies(db, hotel):
     """The original Rupakot state. Must not error on an empty rate card."""
     await _setup(db, hotel, rooms=False)
-    results = await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    results = await sync.sync_hotel_setup(db, hotel_id=hotel.id)
     assert results
     assert any("Cancellation" in t for t in await _titles(db, hotel.id))
 
@@ -229,7 +231,7 @@ async def test_the_sync_is_scoped_to_the_hotel(db, hotel):
         )
     )
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     assert not any("Their Room" in t for t in await _titles(db, hotel.id))
 
@@ -246,7 +248,7 @@ async def test_the_sync_is_scoped_to_the_hotel(db, hotel):
 
 async def test_a_starting_rate_question_is_answerable(db, hotel):
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     hits = await retrieval.search(
         db, hotel_id=hotel.id, query="What is your starting rate?", limit=3
@@ -258,7 +260,7 @@ async def test_a_starting_rate_question_is_answerable(db, hotel):
 
 async def test_the_cheapest_room_is_named(db, hotel):
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     hits = await retrieval.search(
         db, hotel_id=hotel.id, query="What is the cheapest room you have?",
@@ -278,7 +280,7 @@ async def test_the_summary_ranks_by_rate_not_by_insertion_order(db, hotel):
         RT(name="Cheap", base_rate=D("5000"), max_occupancy=1, amenities=[]),
         RT(name="Middle", base_rate=D("9000"), max_occupancy=6, amenities=[]),
     ]
-    body = ingest._rate_summary_document(rooms, "NPR")
+    body = sync._rate_summary_document(rooms, "NPR")
     assert "lowest nightly rate is the Cheap at NPR 5,000" in body
     assert "highest is the Expensive at NPR 22,000" in body
     # Largest is by occupancy, not by price - a cheap room can sleep more.
@@ -292,7 +294,7 @@ async def test_a_single_room_type_does_not_claim_a_range(db, hotel):
 
     from app.platform.models import RoomType as RT
 
-    body = ingest._rate_summary_document(
+    body = sync._rate_summary_document(
         [RT(name="Only Room", base_rate=D("7000"), max_occupancy=2, amenities=[])],
         "NPR",
     )
@@ -304,7 +306,7 @@ async def test_no_summary_when_there_are_no_room_types(db, hotel):
     """Rupakot's state before this data arrived. An empty summary document
     would fail ingestion with 'produced no chunks'."""
     await _setup(db, hotel, rooms=False)
-    results = await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    results = await sync.sync_hotel_setup(db, hotel_id=hotel.id)
     assert not any("overview" in r.title.lower() for r in results)
 
 
@@ -314,7 +316,7 @@ async def test_the_summary_is_regenerated_from_the_rows(db, hotel):
     from decimal import Decimal as D
 
     await _setup(db, hotel)
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     room = (
         await db.execute(
@@ -325,7 +327,7 @@ async def test_the_summary_is_regenerated_from_the_rows(db, hotel):
     ).scalar_one()
     room.base_rate = D("3000.00")
     await db.flush()
-    await ingest.sync_hotel_setup(db, hotel_id=hotel.id)
+    await sync.sync_hotel_setup(db, hotel_id=hotel.id)
 
     hits = await retrieval.search(
         db, hotel_id=hotel.id, query="cheapest room starting rate", limit=4

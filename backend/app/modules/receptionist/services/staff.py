@@ -13,15 +13,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.receptionist.models import (
-    AiRequest,
-    BookingInquiry,
-    Conversation,
-    ConversationStatus,
-    InquiryStatus,
-    Message,
-    Sender,
-)
+from app.modules.receptionist.models import AiRequest, BookingInquiry, Conversation, ConversationStatus, InquiryStatus, Message, Sender
 
 
 @dataclass

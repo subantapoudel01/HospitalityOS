@@ -15,12 +15,11 @@ from conversa.core import model_router
 from app.core.auth import Principal, require_staff, require_staff_token
 from conversa.core.db import get_db
 from app.modules.receptionist import schemas
-from app.modules.receptionist.models import (
-    BookingInquiry,
-    KnowledgeChunk,
-    KnowledgeDocument,
-)
-from app.modules.receptionist.rag import ingest, quality, retrieval
+from conversa.rag.models import KnowledgeChunk, KnowledgeDocument
+from app.modules.receptionist.models import BookingInquiry
+from conversa.rag import ingest
+from conversa.rag import quality, retrieval
+from app.modules.receptionist.rag import sync
 from app.modules.receptionist.models import ConversationStatus, InquiryStatus
 from app.modules.receptionist.services import conversation as convo
 from app.modules.receptionist.services import export
@@ -36,7 +35,7 @@ async def status_():
 
 
 async def _require_hotel(db: AsyncSession, hotel_id: int) -> None:
-    if not await ingest.hotel_exists(db, hotel_id):
+    if not await sync.hotel_exists(db, hotel_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Hotel {hotel_id} not found",
@@ -127,7 +126,7 @@ async def sync_policies(
     """
     await _require_hotel(db, payload.hotel_id)
     try:
-        results = await ingest.sync_hotel_setup(db, hotel_id=payload.hotel_id)
+        results = await sync.sync_hotel_setup(db, hotel_id=payload.hotel_id)
     except (ValueError, model_router.EmbeddingError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)

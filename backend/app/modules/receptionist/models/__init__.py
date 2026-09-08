@@ -1,4 +1,9 @@
-"""SQLAlchemy models for the receptionist module."""
+"""SQLAlchemy models for the receptionist module.
+
+The knowledge models moved to conversa.rag.models during the engine
+extraction - a document and a chunk are domain-agnostic. Import them
+from there, not from here.
+"""
 
 from app.modules.receptionist.models.booking import (
     BookingInquiry,
@@ -13,12 +18,6 @@ from app.modules.receptionist.models.conversation import (
     Message,
     Sender,
 )
-from app.modules.receptionist.models.knowledge import (
-    EMBEDDING_DIM,
-    KnowledgeChunk,
-    KnowledgeDocument,
-    KnowledgeSourceType,
-)
 
 __all__ = [
     "AiPurpose",
@@ -28,10 +27,6 @@ __all__ = [
     "Channel",
     "Conversation",
     "ConversationStatus",
-    "EMBEDDING_DIM",
-    "KnowledgeChunk",
-    "KnowledgeDocument",
-    "KnowledgeSourceType",
     "Message",
     "Sender",
 ]

@@ -6,13 +6,8 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.receptionist.services.conversation import ChatIntent
-from app.modules.receptionist.models import (
-    Channel,
-    ConversationStatus,
-    InquiryStatus,
-    KnowledgeSourceType,
-    Sender,
-)
+from conversa.rag.models import KnowledgeSourceType
+from app.modules.receptionist.models import Channel, ConversationStatus, InquiryStatus, Sender
 
 
 class DocumentIn(BaseModel):

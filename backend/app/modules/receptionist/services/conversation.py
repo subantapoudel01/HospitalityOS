@@ -32,17 +32,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from conversa.core import model_router
 from conversa.core.config import settings
-from app.modules.receptionist.models import (
-    AiPurpose,
-    AiRequest,
-    Channel,
-    Conversation,
-    ConversationStatus,
-    Message,
-    Sender,
-)
+from app.modules.receptionist.models import AiPurpose, AiRequest, Channel, Conversation, ConversationStatus, Message, Sender
 from app.modules.receptionist.models import BookingInquiry
-from app.modules.receptionist.rag import retrieval
+from conversa.rag import retrieval
 from app.modules.receptionist.services import (
     booking,
     frustration,

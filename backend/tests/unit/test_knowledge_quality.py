@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.receptionist.rag.quality import assess, worst_severity
+from conversa.rag.quality import assess, worst_severity
 
 
 def codes(text: str) -> set[str]:

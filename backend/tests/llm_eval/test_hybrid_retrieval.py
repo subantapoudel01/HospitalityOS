@@ -18,8 +18,8 @@ import pytest
 
 from conversa.core import model_router
 from conversa.core.config import settings
-from app.modules.receptionist.models import KnowledgeSourceType
-from app.modules.receptionist.rag import ingest, retrieval
+from conversa.rag.models import KnowledgeSourceType
+from conversa.rag import ingest, retrieval
 
 pytestmark = pytest.mark.asyncio
 

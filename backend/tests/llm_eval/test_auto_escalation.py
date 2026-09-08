@@ -17,14 +17,9 @@ from sqlalchemy import select
 
 from conversa.core import model_router
 from conversa.core.config import settings
-from app.modules.receptionist.models import (
-    Conversation,
-    ConversationStatus,
-    KnowledgeSourceType,
-    Message,
-    Sender,
-)
-from app.modules.receptionist.rag import ingest
+from conversa.rag.models import KnowledgeSourceType
+from app.modules.receptionist.models import Conversation, ConversationStatus, Message, Sender
+from conversa.rag import ingest
 from app.modules.receptionist.services import conversation as convo
 from app.modules.receptionist.services import frustration, replies
 

@@ -11,8 +11,9 @@ import pytest
 from sqlalchemy import select
 
 from conversa.core import model_router
-from app.modules.receptionist.models import AiRequest, KnowledgeSourceType, Sender
-from app.modules.receptionist.rag import ingest, retrieval
+from conversa.rag.models import KnowledgeSourceType
+from app.modules.receptionist.models import AiRequest, Sender
+from conversa.rag import ingest, retrieval
 from app.modules.receptionist.services import conversation as convo
 from app.modules.receptionist.services import smalltalk
 

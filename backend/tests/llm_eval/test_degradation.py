@@ -20,8 +20,9 @@ import pytest
 from sqlalchemy import select
 
 from conversa.core import model_router
-from app.modules.receptionist.models import AiRequest, KnowledgeSourceType
-from app.modules.receptionist.rag import ingest
+from conversa.rag.models import KnowledgeSourceType
+from app.modules.receptionist.models import AiRequest
+from conversa.rag import ingest
 from app.modules.receptionist.services import booking, conversation as convo
 from app.modules.receptionist.services import intent as intent_svc
 from app.modules.receptionist.services import staff
