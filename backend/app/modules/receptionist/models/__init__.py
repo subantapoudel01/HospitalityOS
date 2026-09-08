@@ -9,24 +9,8 @@ from app.modules.receptionist.models.booking import (
     BookingInquiry,
     InquiryStatus,
 )
-from app.modules.receptionist.models.conversation import (
-    AiPurpose,
-    AiRequest,
-    Channel,
-    Conversation,
-    ConversationStatus,
-    Message,
-    Sender,
-)
 
 __all__ = [
-    "AiPurpose",
     "BookingInquiry",
     "InquiryStatus",
-    "AiRequest",
-    "Channel",
-    "Conversation",
-    "ConversationStatus",
-    "Message",
-    "Sender",
 ]

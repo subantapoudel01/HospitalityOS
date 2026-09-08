@@ -37,8 +37,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from app.modules.receptionist.models import Message, Sender
-from app.modules.receptionist.services.language import Language
+from conversa.dialog.models import Message, Sender
+from conversa.dialog.language import Language
 
 # --- what the guest said -------------------------------------------------
 

@@ -14,10 +14,10 @@ from sqlalchemy import select
 from conversa.core import model_router
 from conversa.core.config import settings
 from conversa.rag.models import KnowledgeSourceType
-from app.modules.receptionist.models import AiRequest, Conversation, ConversationStatus, Message, Sender
+from conversa.dialog.models import AiRequest, Conversation, ConversationStatus, Message, Sender
 from conversa.rag import ingest
 from app.modules.receptionist.services import conversation as convo
-from app.modules.receptionist.services.language import Language
+from conversa.dialog.language import Language
 from app.platform.models import Hotel
 
 pytestmark = pytest.mark.asyncio

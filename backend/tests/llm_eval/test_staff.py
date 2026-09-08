@@ -10,7 +10,8 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.modules.receptionist.models import BookingInquiry, Channel, Conversation, ConversationStatus, InquiryStatus, Message, Sender
+from conversa.dialog.models import Channel, Conversation, ConversationStatus, Message, Sender
+from app.modules.receptionist.models import BookingInquiry, InquiryStatus
 from app.modules.receptionist.services import staff
 from app.platform.models import Hotel
 

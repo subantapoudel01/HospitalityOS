@@ -14,7 +14,7 @@ these strings, and importing one from the other would be circular.
 """
 from __future__ import annotations
 
-from app.modules.receptionist.services.language import Language
+from conversa.dialog.language import Language
 
 # Shown when nothing clears the similarity floor. Note the trailing offer:
 # answering "yes" to it is an escalation request, which is why the exact

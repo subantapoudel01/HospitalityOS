@@ -21,10 +21,10 @@ from sqlalchemy import select
 
 from conversa.core import model_router
 from conversa.rag.models import KnowledgeSourceType
-from app.modules.receptionist.models import AiRequest
+from conversa.dialog.models import AiRequest
 from conversa.rag import ingest
 from app.modules.receptionist.services import booking, conversation as convo
-from app.modules.receptionist.services import intent as intent_svc
+from conversa.dialog import intent as intent_svc
 from app.modules.receptionist.services import staff
 
 pytestmark = pytest.mark.asyncio
@@ -45,7 +45,7 @@ async def _seed(db, hotel):
 
 
 async def _degraded_rows(db, hotel_id):
-    from app.modules.receptionist.models import Conversation
+    from conversa.dialog.models import Conversation
 
     return (
         await db.execute(
@@ -114,7 +114,7 @@ async def test_intent_fallback_is_recorded(db, hotel, fast_tier_fails):
 
 async def test_translation_fallback_is_recorded(db, hotel, fast_tier_fails):
     """A Nepali question searched untranslated is a materially worse answer."""
-    from app.modules.receptionist.models import AiPurpose
+    from conversa.dialog.models import AiPurpose
 
     await _seed(db, hotel)
     await convo.send_message(db, hotel_id=hotel.id, text="कोठाको भाडा कति हो?")
@@ -127,7 +127,7 @@ async def test_translation_fallback_is_recorded(db, hotel, fast_tier_fails):
 
 
 async def test_booking_extraction_fallback_is_recorded(db, hotel, monkeypatch):
-    from app.modules.receptionist.services.intent import GuestIntent, IntentResult
+    from conversa.dialog.intent import GuestIntent, IntentResult
 
     await _seed(db, hotel)
     monkeypatch.setattr(model_router, "FAST_PROVIDER", "groq")

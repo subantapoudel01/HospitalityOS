@@ -16,9 +16,9 @@ from sqlalchemy import select
 
 from app.modules.receptionist.models import BookingInquiry, InquiryStatus
 from app.modules.receptionist.services import booking, conversation as convo
-from app.modules.receptionist.services import intent as intent_svc
-from app.modules.receptionist.services.intent import GuestIntent, IntentResult
-from app.modules.receptionist.services.language import Language
+from conversa.dialog import intent as intent_svc
+from conversa.dialog.intent import GuestIntent, IntentResult
+from conversa.dialog.language import Language
 from app.platform.models import Hotel
 
 pytestmark = pytest.mark.asyncio

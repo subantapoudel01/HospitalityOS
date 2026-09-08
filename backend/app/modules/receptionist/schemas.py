@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.receptionist.services.conversation import ChatIntent
 from conversa.rag.models import KnowledgeSourceType
-from app.modules.receptionist.models import Channel, ConversationStatus, InquiryStatus, Sender
+from conversa.dialog.models import Channel, ConversationStatus, Sender
+from app.modules.receptionist.models import InquiryStatus
 
 
 class DocumentIn(BaseModel):

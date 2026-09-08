@@ -19,13 +19,13 @@ from sqlalchemy import select
 
 from conversa.core import model_router
 from conversa.rag.models import KnowledgeSourceType
-from app.modules.receptionist.models import Conversation, ConversationStatus, Message, Sender
+from conversa.dialog.models import Conversation, ConversationStatus, Message, Sender
 from conversa.rag import ingest, retrieval
 from app.modules.receptionist.services import conversation as convo
-from app.modules.receptionist.services import intent as intent_svc
-from app.modules.receptionist.services import replies
-from app.modules.receptionist.services.intent import GuestIntent, IntentResult
-from app.modules.receptionist.services.language import Language
+from conversa.dialog import intent as intent_svc
+from conversa.dialog import replies
+from conversa.dialog.intent import GuestIntent, IntentResult
+from conversa.dialog.language import Language
 
 pytestmark = pytest.mark.asyncio
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.receptionist.services.language import Language, detect
+from conversa.dialog.language import Language, detect
 
 # (text, expected). Expected None means "genuinely ambiguous - escalating to
 # a model is the right answer, not a failure".

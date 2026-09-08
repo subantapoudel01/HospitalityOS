@@ -35,8 +35,8 @@ import re
 from dataclasses import dataclass
 
 from conversa.core import model_router
-from app.modules.receptionist.services import replies, smalltalk
-from app.modules.receptionist.services.language import Language
+from conversa.dialog import replies, smalltalk
+from conversa.dialog.language import Language
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 

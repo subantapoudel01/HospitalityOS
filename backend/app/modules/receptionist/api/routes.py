@@ -20,7 +20,8 @@ from app.modules.receptionist.models import BookingInquiry
 from conversa.rag import ingest
 from conversa.rag import quality, retrieval
 from app.modules.receptionist.rag import sync
-from app.modules.receptionist.models import ConversationStatus, InquiryStatus
+from conversa.dialog.models import ConversationStatus
+from app.modules.receptionist.models import InquiryStatus
 from app.modules.receptionist.services import conversation as convo
 from app.modules.receptionist.services import export
 from app.modules.receptionist.services import staff as staff_svc

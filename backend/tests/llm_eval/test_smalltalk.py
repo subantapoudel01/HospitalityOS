@@ -12,10 +12,10 @@ from sqlalchemy import select
 
 from conversa.core import model_router
 from conversa.rag.models import KnowledgeSourceType
-from app.modules.receptionist.models import AiRequest, Sender
+from conversa.dialog.models import AiRequest, Sender
 from conversa.rag import ingest, retrieval
 from app.modules.receptionist.services import conversation as convo
-from app.modules.receptionist.services import smalltalk
+from conversa.dialog import smalltalk
 
 pytestmark = pytest.mark.asyncio
 

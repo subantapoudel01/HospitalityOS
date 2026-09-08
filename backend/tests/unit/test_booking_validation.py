@@ -17,7 +17,7 @@ from app.modules.receptionist.services.booking import (
     confirmation_text,
     validate,
 )
-from app.modules.receptionist.services.language import Language
+from conversa.dialog.language import Language
 
 TODAY = date(2026, 8, 23)
 
