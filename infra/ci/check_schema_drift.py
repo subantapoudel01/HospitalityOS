@@ -35,6 +35,8 @@ from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 # Importing the model modules is what registers tables on Base.metadata.
 # This list must match alembic/env.py - a module missing from either place
 # makes its tables invisible to the comparison.
+import conversa.dialog.models  # noqa: F401
+import conversa.rag.models  # noqa: F401
 import app.modules.receptionist.models  # noqa: F401
 import app.platform.guests  # noqa: F401
 import app.platform.models  # noqa: F401

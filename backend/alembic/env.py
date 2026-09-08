@@ -19,7 +19,13 @@ from conversa.core.db import Base
 # Importing the model modules is what registers tables on Base.metadata.
 # Every new model module must be imported here or autogenerate will think
 # its tables should be dropped.
-import app.modules.receptionist.models  # noqa: F401,E402  (incl. booking)
+# The engine owns the conversation and knowledge tables now; the module
+# owns booking_inquiries. Miss one and autogenerate cannot resolve the
+# foreign keys between them - booking_inquiries.conversation_id was the
+# one that caught this.
+import conversa.dialog.models  # noqa: F401,E402
+import conversa.rag.models  # noqa: F401,E402
+import app.modules.receptionist.models  # noqa: F401,E402  (booking)
 import app.platform.guests  # noqa: F401,E402
 import app.platform.models  # noqa: F401,E402
 import app.platform.users  # noqa: F401,E402

@@ -107,6 +107,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # The engine package. The Dockerfiles install this too; CI ran
+          # without it and every step from `alembic upgrade` onward failed
+          # on `import conversa`, because the app imports the engine now.
+          pip install -e ../packages/conversa
 
       - name: Run migrations
         working-directory: backend
