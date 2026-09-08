@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from redis.asyncio import from_url as redis_from_url
 from sqlalchemy import text
 
-from app.core.config import settings
-from app.core.db import engine
+from conversa.core.config import settings
+from conversa.core.db import engine
 from app.modules.receptionist.api import router as receptionist_router
 from app.modules.receptionist.api import staff_router
 from app.platform.api import auth_router

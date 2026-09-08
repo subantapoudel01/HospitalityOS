@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.services.language import Language
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)

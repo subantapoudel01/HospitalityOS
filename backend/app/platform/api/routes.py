@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.db import get_db
+from conversa.core.db import get_db
 from app.platform import hooks, models, schemas
 
 router = APIRouter(prefix="/platform", tags=["platform"])

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 
-from app.core.config import settings
+from conversa.core.config import settings
 from app.core.security import (
     InvalidToken,
     SecurityNotConfigured,

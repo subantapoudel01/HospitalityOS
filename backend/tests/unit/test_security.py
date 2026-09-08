@@ -14,7 +14,7 @@ import jwt
 import pytest
 
 from app.core import security
-from app.core.config import settings
+from conversa.core.config import settings
 
 SECRET = "test-secret-not-used-anywhere-real"
 

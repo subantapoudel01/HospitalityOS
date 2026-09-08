@@ -20,7 +20,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base
+from conversa.core.db import Base
 
 
 class UserRole(str, enum.Enum):

@@ -34,7 +34,7 @@ import json
 import re
 from dataclasses import dataclass
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.services import replies, smalltalk
 from app.modules.receptionist.services.language import Language
 

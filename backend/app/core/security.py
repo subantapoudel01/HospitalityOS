@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 
-from app.core.config import settings
+from conversa.core.config import settings
 
 # bcrypt directly, NOT passlib.
 #

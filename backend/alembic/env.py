@@ -1,7 +1,7 @@
 """
 Alembic environment, async-aware to match the app's asyncpg engine.
 
-The URL comes from app.core.config (i.e. the .env file), never from
+The URL comes from conversa.core.config (i.e. the .env file), never from
 alembic.ini, so migrations and the running app can never disagree about
 which database they mean.
 """
@@ -13,8 +13,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.core.config import settings
-from app.core.db import Base
+from conversa.core.config import settings
+from conversa.core.db import Base
 
 # Importing the model modules is what registers tables on Base.metadata.
 # Every new model module must be imported here or autogenerate will think

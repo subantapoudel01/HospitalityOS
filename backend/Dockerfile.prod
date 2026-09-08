@@ -31,7 +31,7 @@ COPY backend/ .
 # and the first search is not a 20s cold start. Goes through the router
 # rather than naming the model here, keeping model strings in one place.
 ENV FASTEMBED_CACHE_PATH=/opt/fastembed_cache
-RUN python -c "from app.core.model_router import _get_local_model; _get_local_model()"
+RUN python -c "from conversa.core.model_router import _get_local_model; _get_local_model()"
 
 # Non-root, and it must be able to read the baked model cache.
 RUN useradd --create-home --uid 1001 appuser \

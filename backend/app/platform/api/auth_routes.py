@@ -32,8 +32,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import COOKIE_NAME, Principal, require_staff
-from app.core.config import settings
-from app.core.db import get_db
+from conversa.core.config import settings
+from conversa.core.db import get_db
 from app.core.security import (
     SecurityNotConfigured,
     issue_token,

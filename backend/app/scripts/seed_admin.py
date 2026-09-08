@@ -29,7 +29,7 @@ import sys
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import settings
+from conversa.core.config import settings
 from app.core.security import MAX_PASSWORD_BYTES, hash_password
 from app.platform.models import Hotel
 from app.platform.schemas import LoginIn, normalise_email

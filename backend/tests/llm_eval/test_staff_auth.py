@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import settings
-from app.core.db import get_db
+from conversa.core.config import settings
+from conversa.core.db import get_db
 from app.main import app
 
 TOKEN = "test-staff-token"
@@ -39,7 +39,7 @@ def client():
     """
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from app.core.config import settings as app_settings
+    from conversa.core.config import settings as app_settings
 
     async def _override():
         engine = create_async_engine(app_settings.database_url)

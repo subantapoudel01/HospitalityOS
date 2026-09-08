@@ -30,8 +30,8 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import model_router
-from app.core.config import settings
+from conversa.core import model_router
+from conversa.core.config import settings
 from app.modules.receptionist.models import (
     AiPurpose,
     AiRequest,

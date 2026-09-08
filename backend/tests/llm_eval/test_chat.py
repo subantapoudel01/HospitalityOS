@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.core import model_router
-from app.core.config import settings
+from conversa.core import model_router
+from conversa.core.config import settings
 from app.modules.receptionist.models import (
     AiRequest,
     Conversation,

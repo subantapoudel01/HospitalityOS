@@ -39,8 +39,8 @@ import app.modules.receptionist.models  # noqa: F401
 import app.platform.guests  # noqa: F401
 import app.platform.models  # noqa: F401
 import app.platform.users  # noqa: F401
-from app.core.config import settings
-from app.core.db import Base
+from conversa.core.config import settings
+from conversa.core.db import Base
 
 #: Tables alembic knows about but the models deliberately do not define.
 IGNORED_TABLES = {"alembic_version"}

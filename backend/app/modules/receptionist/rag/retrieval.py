@@ -88,8 +88,8 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.types import Float, String
 
-from app.core import model_router
-from app.core.config import settings
+from conversa.core import model_router
+from conversa.core.config import settings
 
 #: Terms appearing in no chunk at all are dropped rather than counted in
 #: the denominator. Otherwise "Do you take Khalti?" - where nothing

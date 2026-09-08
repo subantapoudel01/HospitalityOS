@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base
+from conversa.core.db import Base
 
 
 class PolicyCategory(str, enum.Enum):

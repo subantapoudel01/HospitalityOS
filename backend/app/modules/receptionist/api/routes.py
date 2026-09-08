@@ -11,9 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import model_router
+from conversa.core import model_router
 from app.core.auth import Principal, require_staff, require_staff_token
-from app.core.db import get_db
+from conversa.core.db import get_db
 from app.modules.receptionist import schemas
 from app.modules.receptionist.models import (
     BookingInquiry,

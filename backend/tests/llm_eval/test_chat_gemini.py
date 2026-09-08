@@ -32,7 +32,7 @@ import time
 
 import pytest
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.models import KnowledgeSourceType
 from app.modules.receptionist.rag import ingest
 from app.modules.receptionist.services import conversation as convo

@@ -24,7 +24,7 @@ COPY backend/ .
 # Goes through the router rather than naming the model here, keeping
 # model strings in exactly one place.
 ENV FASTEMBED_CACHE_PATH=/opt/fastembed_cache
-RUN python -c "from app.core.model_router import _get_local_model; _get_local_model()"
+RUN python -c "from conversa.core.model_router import _get_local_model; _get_local_model()"
 
 EXPOSE 8000
 

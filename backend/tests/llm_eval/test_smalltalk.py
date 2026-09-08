@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.models import AiRequest, KnowledgeSourceType, Sender
 from app.modules.receptionist.rag import ingest, retrieval
 from app.modules.receptionist.services import conversation as convo

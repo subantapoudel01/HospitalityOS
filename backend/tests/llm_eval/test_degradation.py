@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.models import AiRequest, KnowledgeSourceType
 from app.modules.receptionist.rag import ingest
 from app.modules.receptionist.services import booking, conversation as convo

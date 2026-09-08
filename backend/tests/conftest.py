@@ -15,8 +15,8 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.core import model_router
-from app.core.config import settings
+from conversa.core import model_router
+from conversa.core.config import settings
 from app.platform.models import Hotel
 
 

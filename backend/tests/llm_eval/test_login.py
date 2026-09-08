@@ -13,8 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.auth import COOKIE_NAME
-from app.core.config import settings
-from app.core.db import get_db
+from conversa.core.config import settings
+from conversa.core.db import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.platform.models import Hotel

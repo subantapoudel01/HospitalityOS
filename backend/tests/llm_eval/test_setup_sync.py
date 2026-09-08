@@ -14,7 +14,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.models import KnowledgeDocument
 from app.modules.receptionist.rag import ingest, retrieval
 from app.platform.models import HotelPolicy, PolicyCategory, RoomType

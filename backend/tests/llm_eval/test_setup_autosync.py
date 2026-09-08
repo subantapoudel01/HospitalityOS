@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.core import model_router
+from conversa.core import model_router
 from app.modules.receptionist.models import KnowledgeDocument
 from app.platform import hooks
 from app.platform.api import routes as platform_routes
