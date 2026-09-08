@@ -23,7 +23,10 @@ services:
       retries: 10
 
   backend:
-    build: ../../backend
+    build:
+      # Repo root, so packages/conversa is inside the build context.
+      context: ../..
+      dockerfile: backend/Dockerfile
     env_file: ../../.env
     depends_on:
       postgres:
@@ -31,7 +34,10 @@ services:
       redis:
         condition: service_healthy
     ports: ["8000:8000"]
-    volumes: ["../../backend:/app"]
+    volumes:
+      - ../../backend:/app
+      # The editable install points here, so engine edits are live too.
+      - ../../packages:/packages
 
   frontend:
     build: ../../frontend

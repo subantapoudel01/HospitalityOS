@@ -5,10 +5,19 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-COPY requirements.txt .
+# Build context is the REPOSITORY ROOT, not backend/. That is what makes
+# packages/conversa visible to pip - an editable install cannot reach
+# outside its build context, and the engine package lives beside the app
+# rather than inside it.
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# The engine, installed editable. In dev the same path is bind-mounted, so
+# edits to the package are live without a rebuild.
+COPY packages/ /packages/
+RUN pip install --no-cache-dir -e /packages/conversa
+
+COPY backend/ .
 
 # Bake the embedding model into the image so the container needs no
 # network at runtime and the first search isn't a 20s cold start.

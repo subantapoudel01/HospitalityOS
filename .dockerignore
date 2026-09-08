@@ -1,0 +1,36 @@
+# Build context is the repository root (see backend/Dockerfile), and Docker
+# reads .dockerignore from the CONTEXT root - so backend/.dockerignore no
+# longer governs the backend image. Without this file every build would ship
+# .git and node_modules to the daemon.
+#
+# packages/ is deliberately NOT ignored: the engine is installed from there.
+
+.git
+.github
+
+# python
+__pycache__
+*.pyc
+.venv
+.pytest_cache
+
+# node / next
+node_modules
+.next
+*.tsbuildinfo
+
+# secrets and data
+.env
+.env.*
+!.env.example
+!.env.*.example
+backups/
+*.dump
+*.sql.gz
+booking-inquiries-*.csv
+
+# local noise
+.claude
+.DS_Store
+docs
+Recepceonist

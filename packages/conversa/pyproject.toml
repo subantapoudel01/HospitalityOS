@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conversa"
+version = "0.1.0"
+description = "Domain-agnostic retrieval-grounded conversation engine."
+requires-python = ">=3.12"
+
+# Mirrors the subset of backend/requirements.txt that the files destined for
+# this package actually import. Derived from their import statements, not
+# guessed: sqlalchemy, pgvector, fastembed, fastapi, pydantic-settings,
+# bcrypt and PyJWT. Versions are pinned to the same values the application
+# already runs, so installing this editable alongside the app cannot move a
+# dependency underneath it.
+dependencies = [
+    "fastapi==0.115.6",
+    "sqlalchemy==2.0.36",
+    "pgvector==0.5.0",
+    "fastembed==0.8.0",
+    "pydantic-settings==2.6.1",
+    "bcrypt==4.2.1",
+    "PyJWT==2.10.1",
+]
+
+[project.optional-dependencies]
+# Provider SDKs are optional on purpose. model_router already degrades to
+# the keyless extractive path when a provider is absent, so a vertical that
+# never calls a hosted model should not have to install their SDKs.
+groq = ["groq==0.34.0"]
+gemini = ["google-genai==1.46.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["conversa*"]
